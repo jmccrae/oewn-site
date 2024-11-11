@@ -1,0 +1,9 @@
+[package]
+name = "oewn-site"
+version = "0.1.0"
+authors = ["John McCrae <john@mccr.ae>"]
+edition = "2021"
+
+[dependencies]
+rocket = "0.5.1"
+clap = { version = "4.5.20", features = ["derive"] }
