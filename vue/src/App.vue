@@ -1,7 +1,7 @@
 <script setup>
 //import HelloWorld from './components/HelloWorld.vue'
 //import TheWelcome from './components/TheWelcome.vue'
-import WordNet from './components/WordNet.vue'
+import Wordnet from './components/Wordnet.vue'
 </script>
 
 <template>
@@ -18,7 +18,7 @@ import WordNet from './components/WordNet.vue'
         </tr>
       </table>
     </div>
-    <wordnet></wordnet>
+    <Wordnet></Wordnet>
     <footer class="footer">
       <div class="container">
         <div style="text-align:center;">
