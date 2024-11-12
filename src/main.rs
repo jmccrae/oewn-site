@@ -1,9 +1,15 @@
 #[macro_use] extern crate rocket;
 
+mod wordnet;
+
 use clap::Parser;
 use rocket::config::Config as RocketConfig;
 use rocket::fs::FileServer;
-use rocket::response::content::RawHtml;
+use rocket::response::content::{RawHtml, RawJson};
+use once_cell::sync::OnceCell;
+use wordnet::{Lexicon, SynsetId, Synset, Entry};
+use std::collections::HashMap;
+use serde::Serialize;
 
 
 #[derive(Parser,Debug)]
@@ -17,7 +23,17 @@ struct Config {
     wn: Option<String>
 }
 
+struct State {
+    wn : wordnet::Lexicon
+}
+
+static STATE: OnceCell<State> = OnceCell::new();
+
 fn prepare_server(config : &Config) -> Result<(), String> {
+    let wn = Lexicon::load(config.wn.clone().unwrap_or(".".to_string()))
+        .map_err(|e| format!("Failed to load WordNet: {}", e))?;
+
+    STATE.set(State { wn }).map_err(|_| "Failed to set state".to_string())?;
 
     Ok(())
 }
@@ -25,6 +41,84 @@ fn prepare_server(config : &Config) -> Result<(), String> {
 #[get("/")]
 fn index() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
+}
+
+#[derive(Serialize)]
+struct JsonResponse<'a> {
+    synsets: Vec<&'a Synset>,
+    synset_ids: Vec<SynsetId>,
+    entries: HashMap<String, Vec<&'a Entry>>
+}
+
+#[get("/autocomplete/<index>/<query>")]
+fn autocomplete(index : &str, query: &str) -> RawJson<String> {
+    let state = STATE.get().expect("State not set");
+    let results = if index == "lemma" {
+        state.wn.lemma_by_prefix(query)
+    } else if index == "ili" {
+        state.wn.ili_by_prefix(query)
+    } else if index == "id" {
+        state.wn.ssid_by_prefix(query)
+    } else {
+        Vec::new()
+    };
+    let results = results.iter().take(100).collect::<Vec<_>>();
+    RawJson(serde_json::to_string(&results).expect("Failed to serialize"))
+}
+
+impl<'a> JsonResponse<'a> {
+    fn new() -> Self {
+        JsonResponse {
+            synsets: Vec::new(),
+            synset_ids: Vec::new(),
+            entries: HashMap::new()
+        }
+    }
+}
+
+#[get("/json/<index>/<id>")]
+fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
+    let state = STATE.get().expect("State not set");
+    let mut response = JsonResponse::new();
+    eprintln!("{} {}", index, id);
+    if index == "id" {
+        let ssid = SynsetId::new(id);
+        if let Some(synset) = state.wn.synset_by_id(&ssid) {
+            response.synsets.push(synset);
+            response.synset_ids.push(ssid);
+            for member in synset.members.iter() {
+                for entry in state.wn.entry_by_lemma(&member) {
+                    response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
+                }
+            }
+        }
+    } else if index == "lemma" {
+        let entries = state.wn.entry_by_lemma(id);
+        for entry in entries.iter() {
+            for sense in entry.sense.iter() {
+                if let Some(synset) = state.wn.synset_by_id(&sense.synset) {
+                    response.synsets.push(synset);
+                    response.synset_ids.push(sense.synset.clone());
+                } else {
+                    return Err(format!("Failed to find synset {:?}", sense.synset));
+                }
+            }
+        }
+        response.entries.insert(id.to_string(), entries);
+    } else if index == "ili" {
+        if let Some((ssid, synset)) = state.wn.synset_by_ili(id) {
+            response.synsets.push(synset);
+            response.synset_ids.push(ssid.clone());
+            for member in synset.members.iter() {
+                for entry in state.wn.entry_by_lemma(&member) {
+                    response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
+                }
+            }
+        }
+    } else {
+        return Err("Invalid index".to_string())
+    }
+    Ok(RawJson(serde_json::to_string(&response).map_err(|e| format!("Failed to serialize: {}", e))?))
 }
 
 #[launch]
@@ -38,7 +132,7 @@ fn rocket() -> _ {
             rocket::custom(&rocket_config)
                 .manage(state)
                 .mount("/assets", FileServer::from("dist/assets"))
-                .mount("/", routes![index])
+                .mount("/", routes![index, json, autocomplete])
         },
         Err(msg) => {
             eprintln!("{}", msg);

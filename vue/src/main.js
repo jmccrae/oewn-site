@@ -1,8 +1,13 @@
-import 'bootstrap/dist/css/bootstrap.css'
+import { createApp } from 'vue'
+import App from './App.vue'
+import vuetify from './plugins/vuetify'
+import { loadFonts } from './plugins/webfontloader'
+//import 'bootstrap/dist/css/bootstrap.css'
 import './assets/main.css'
 import './assets/fonts.css'
 
-import { createApp } from 'vue'
-import App from './App.vue'
+loadFonts()
 
-createApp(App).mount('#app')
+createApp(App)
+  .use(vuetify)
+  .mount('#app')
