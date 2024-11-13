@@ -43,13 +43,6 @@ fn index() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
-#[derive(Serialize)]
-struct JsonResponse<'a> {
-    synsets: Vec<&'a Synset>,
-    synset_ids: Vec<SynsetId>,
-    entries: HashMap<String, Vec<&'a Entry>>
-}
-
 #[get("/autocomplete/<index>/<query>")]
 fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     let state = STATE.get().expect("State not set");
@@ -66,11 +59,16 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     RawJson(serde_json::to_string(&results).expect("Failed to serialize"))
 }
 
+#[derive(Serialize)]
+struct JsonResponse<'a> {
+    synsets: Vec<&'a Synset>,
+    entries: HashMap<String, Vec<&'a Entry>>
+}
+
 impl<'a> JsonResponse<'a> {
     fn new() -> Self {
         JsonResponse {
             synsets: Vec::new(),
-            synset_ids: Vec::new(),
             entries: HashMap::new()
         }
     }
@@ -85,7 +83,6 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
         let ssid = SynsetId::new(id);
         if let Some(synset) = state.wn.synset_by_id(&ssid) {
             response.synsets.push(synset);
-            response.synset_ids.push(ssid);
             for member in synset.members.iter() {
                 for entry in state.wn.entry_by_lemma(&member) {
                     response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
@@ -98,7 +95,14 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
             for sense in entry.sense.iter() {
                 if let Some(synset) = state.wn.synset_by_id(&sense.synset) {
                     response.synsets.push(synset);
-                    response.synset_ids.push(sense.synset.clone());
+                    for member in synset.members.iter() {
+                        if response.entries.contains_key(member) {
+                            continue;
+                        }
+                        for entry in state.wn.entry_by_lemma(&member) {
+                            response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
+                        }
+                    }
                 } else {
                     return Err(format!("Failed to find synset {:?}", sense.synset));
                 }
@@ -106,9 +110,8 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
         }
         response.entries.insert(id.to_string(), entries);
     } else if index == "ili" {
-        if let Some((ssid, synset)) = state.wn.synset_by_ili(id) {
+        if let Some((_, synset)) = state.wn.synset_by_ili(id) {
             response.synsets.push(synset);
-            response.synset_ids.push(ssid.clone());
             for member in synset.members.iter() {
                 for entry in state.wn.entry_by_lemma(&member) {
                     response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);

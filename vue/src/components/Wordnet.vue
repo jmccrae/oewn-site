@@ -115,7 +115,7 @@
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'n')">
             <h3 class="pos_label">Nouns</h3>
             <div v-for="ss in synsets">
-                <synset :synset="ss" :display="display" :focus="focus"></synset>
+                <synset :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
             </div>
         </span>
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'v')">

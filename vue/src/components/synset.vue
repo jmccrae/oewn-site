@@ -1,63 +1,100 @@
 <script>
+    import axios from 'axios';
 
     export default {
-        props: ["synset", "display", "focus"],
+        name: "synset",
+        props: ["synset", "entries", "display", "focus"],
         data() {
             return {
                 show_relations: false,
+                targetsynsets: {},
+                targetentries: {}
             }
-        }
+        },
+        methods: {
+            entryNo(member) {
+                for(const entry of this.entries[member]) {
+                    // Any sense of this synset == this.synset.id
+                    for(const sense of entry.sense) {
+                        if(sense.synset == this.synset.id) {
+                            // Return 0 if entry.poskey is a single letter else return the 3rd character
+                            return entry.poskey.length == 1 ? 0 : Number(entry.poskey[2]);
+                        }
+                    }
+                }
+                return 0;
+            },
+            load_targets() {
+                axios.all(this.synset.hypernym.map(relation => {
+                    return axios.get('/json/id/' + relation);
+                }))
+                    .then(axios.spread((...responses) => {
+                        console.log(JSON.stringify(responses));
+                        for(var i = 0; i < responses.length; i++) {
+                            let ssid = responses[i].data.synsets[0].id;
+                            this.targetsynsets[ssid] = responses[i].data.synsets[0];
+                            this.targetentries[ssid] = responses[i].data.entries;
+                        }
+                        this.show_relations = true;
+                    }))
+                    .catch(error => {
+                        console.log(error);
+                    });
+            }
+        },
     }
 </script>
 
 <template>
     <div class="synset">
-        Synset: {{synset}}<br/>
-        Display: {{display}}<br/>
-        Focus: {{focus}}<br/>
         <div class="synset-id" v-show="display.ids">
-            <span v-bind="synset.id" class="identifier"></span>              (<b class="synset-id-title">Interlingual Index:</b> 
-            <span v-bind="synset.ili" class="identifier"></span>)
+            <span class="identifier">{{ synset.id }}</span> (<b class="synset-id-title">Interlingual Index:</b> 
+            <span class="identifier">{{ synset.ili }}</span>)
             <hr/>
         </div>
 
         <div class="lemmas">
-            <span class="pos">({{synset.pos}})</span>
-            <span class="lemma" v-for="sense in synset.lemmas">
-                <a target="_self" v-bind:href="'/lemma/' + sense.lemma" v-if="sense.lemma != focus">{{sense.lemma}}</a>
-                <span class="underline" v-if="sense.lemma == focus">{{sense.lemma}}</span>
-                <span v-if="sense.entry_no > 0"><sup>{{sense.entry_no}}</sup></span>
-                <span v-if="!display.sensekeys && !display.pronunciation">{{$last ? '' : ','}}</span>
-                <span v-if="display.pronunciation && sense.pronunciations.length > 0" class="pronunciation">
+            <span class="pos">({{synset.partOfSpeech}})</span>
+            <span class="lemma" v-for="(member, index) in synset.members">
+                <a target="_self" v-bind:href="'/lemma/' + member" :class="{ underline: member === focus }">{{ member }}</a>
+                <span v-if="entryNo(member) > 0"><sup>{{ entryNo(member) }}</sup></span>
+                <span v-if="!display.sensekeys && !display.pronunciation && index != synset.members.length - 1">, </span>
+                <!--<span v-if="display.pronunciation && sense.pronunciations.length > 0" class="pronunciation">
                     (Pronunciation:
                     <span v-for="pron in sense.pronunciations">
                         <span v-if="pron.variety" class="pronunciation_variety">({{pron.variety}})</span>
                         {{pron.value}}{{$last ? '' : ', '}}</span>)
-                </span><span v-if="!display.sensekeys && display.pronunciation">{{$last ? '' : ','}}</span><span v-bind="sense.sense_key" class="sense_key" v-if="display.sensekeys"></span><span v-if="display.sensekeys">{{$last ? '' : ','}}</span>
+                </span><span v-if="!display.sensekeys && display.pronunciation">{{$last ? '' : ','}}</span><span v-bind="sense.sense_key" class="sense_key" v-if="display.sensekeys"></span><span v-if="display.sensekeys">{{$last ? '' : ','}}</span>-->
             </span>
-            <span v-for="rel in synset.relations">
+            <!--<span v-for="rel in synset.relations">
                 <span v-if="'rel_type'=='domain_topic'">
                     ((<i><a v-bind:href="'/id/' + rel.target" target="_blank" v-for="r in targetsynsets"><span v-if="id == rel.target">{{r.lemmas[0].lemma}}</span></a></i>))
                 </span>
+            </span>-->
+            <span class="definition">{{ synset.definition[0] }}</span>
+            <span v-for="example in synset.example" class="example"> 
+                <span v-if='!example.startsWith("\"")'>&ldquo;</span>{{example}}<span v-if='!example.startsWith("\"")'>&rdquo;</span>
             </span>
-            <span ng-bind="synset.definition" class="definition"></span>
-            <span v-for="example in synset.examples" class="example"> <span v-if='!example.startsWith("\"")'>&ldquo;</span>{{example}}<span v-if='!example.startsWith("\"")'>&rdquo;</span></span>
             <div v-if="display.topics" class="topic">
-                <b>Topic: </b> {{synset.subject}}
+                <b>Topic: </b> {{ synset.lexname }}
             </div>
-            <div ng-if="display.subcats" class="subcats">
+            <!--<div ng-if="display.subcats" class="subcats">
                 <b>Subcategorization Frames:</b>
                 <!--<ul ng-repeat="sense in $ctrl.synset.lemmas" ng-if="$ctrl.hasSubcats()">
                     <li class="subcat" ng-repeat="subcat in sense.subcats">{{$ctrl.replaceSubcat(subcat, sense.lemma)}}</span>
-                </ul>-->
-            </div>
+                </ul>--><!--
+            </div>-->
             <div v-if="show_relations" class="relations">
-                <relation display="$ctrl.display"
-                          targetSynsets="$ctrl.targetsynsets"
-                          fullname="Hypernyms"
-                          relation="hypernym"
-                          relations="$ctrl.synset.relations"></relation>
-                <relation relation="hyponym" display="$ctrl.display"
+                <div class="relation-title">
+                    <a href="#" @click="show_hypernyms = !show_hypernyms">Hypernyms ({{ synset.hypernym.length }})</a>
+                </div>
+                <span v-for="hypernym in synset.hypernym">
+                    <synset :synset="targetsynsets[hypernym]"
+                      :display="display"
+                      focus=""
+                      :entries="targetentries[hypernym]"></synset>
+                </span>
+                <!--<relation relation="hyponym" display="$ctrl.display"
                                              targetsynsets="$ctrl.targetsynsets"
                                              relations="$ctrl.synset.relations"
                                              fullname="Hyponyms"></relation>
@@ -170,14 +207,14 @@
                                                 relations="$ctrl.synset.relations"
                                                 fullname="Verb groups"></relation>
                 <a class="btn" href="#" ng-show="$ctrl.targetsynsetsextra.length > 0"
-                                        ng-click="$ctrl.extendtargetsynsets()">Load More</a>
+                ng-click="$ctrl.extendtargetsynsets()">Load More</a>-->
             </div>
-
             <div class="more">
                 <a href="#"
-                   ng-show="!$ctrl.show_relations"
-                   ng-click="$ctrl.show_relations = !$ctrl.show_relations">MORE &#x25B6;</a>
+                   v-show="!show_relations"
+                   @click="load_targets()">MORE &#x25B6;</a>
             </div>
+
         </div>
     </div>
 </template>
