@@ -7,6 +7,11 @@
         data() {
             return {
                 show_relations: false,
+                show_hypernyms: false,
+                show_hyponyms: false,
+                show_instance_hypernym: false,
+                show_instance_hyponym: false,
+                show_antonym: false,
                 targetsynsets: {},
                 targetentries: {}
             }
@@ -25,7 +30,24 @@
                 return 0;
             },
             load_targets() {
-                axios.all(this.synset.hypernym.map(relation => {
+                let targets = [];
+                // add this.synset.hypernym to targets
+                for(const relation of this.synset.hypernym || []) {
+                    targets.push(relation);
+                }
+                for(const relation of this.synset.hyponym || []) {
+                    targets.push(relation);
+                }
+                for(const relation of this.synset.instance_hypernym || []) {
+                    targets.push(relation);
+                }
+                for(const relation of this.synset.instance_hyponym || []) {
+                    targets.push(relation);
+                }
+                for(const relation of this.synset.antonym || []) {
+                    targets.push(relation.target_synset);
+                }
+                axios.all(targets.map(relation => {
                     return axios.get('/json/id/' + relation);
                 }))
                     .then(axios.spread((...responses) => {
@@ -84,133 +106,73 @@
                     <li class="subcat" ng-repeat="subcat in sense.subcats">{{$ctrl.replaceSubcat(subcat, sense.lemma)}}</span>
                 </ul>--><!--
             </div>-->
-            <div v-if="show_relations" class="relations">
-                <div class="relation-title">
-                    <a href="#" @click="show_hypernyms = !show_hypernyms">Hypernyms ({{ synset.hypernym.length }})</a>
-                </div>
-                <span v-for="hypernym in synset.hypernym">
-                    <synset :synset="targetsynsets[hypernym]"
+            <div v-show="show_relations" class="relations">
+                <span v-if="synset.hyponym">
+                    <div class="relation-title">
+                        <a @click="show_hypernyms = !show_hypernyms">Hypernyms ({{ synset.hypernym.length }})</a>
+                    </div>
+                    <synset 
+                      v-if="show_hypernyms"
+                      v-for="hypernym in synset.hypernym"
+                      :synset="targetsynsets[hypernym]"
                       :display="display"
                       focus=""
                       :entries="targetentries[hypernym]"></synset>
                 </span>
-                <!--<relation relation="hyponym" display="$ctrl.display"
-                                             targetsynsets="$ctrl.targetsynsets"
-                                             relations="$ctrl.synset.relations"
-                                             fullname="Hyponyms"></relation>
-                <relation relation="antonym" display="$ctrl.display"
-                                             targetsynsets="$ctrl.targetsynsets"
-                                             relations="$ctrl.synset.relations"
-                                             fullname="Antonyms"></relation>
-                <relation relation="attribute" display="$ctrl.display"
-                                               targetsynsets="$ctrl.targetsynsets"
-                                               relations="$ctrl.synset.relations"
-                                               fullname="Attributes"></relation>
-                <relation relation="causes" display="$ctrl.display"
-                                            targetsynsets="$ctrl.targetsynsets"
-                                            relations="$ctrl.synset.relations"
-                                            fullname="Causes"></relation>
-                <relation relation="derivation" display="$ctrl.display"
-                                                targetsynsets="$ctrl.targetsynsets"
-                                                relations="$ctrl.synset.relations"
-                                                fullname="Derived Forms"></relation>
-                <relation relation="domain_category" display="$ctrl.display"
-                                                     targetsynsets="$ctrl.targetsynsets"
-                                                     relations="$ctrl.synset.relations"
-                                                     fullname="Domains (category)"></relation>
-                <relation relation="domain_member_category" display="$ctrl.display"
-                                                            targetsynsets="$ctrl.targetsynsets"
-                                                            relations="$ctrl.synset.relations"
-                                                            fullname="Members (category)"></relation>
-                <relation relation="domain_member_region" display="$ctrl.display"
-                                                          targetsynsets="$ctrl.targetsynsets"
-                                                          relations="$ctrl.synset.relations"
-                                                          fullname="Members (region)"></relation>
-                <relation relation="domain_region" display="$ctrl.display"
-                                                   targetsynsets="$ctrl.targetsynsets"
-                                                   relations="$ctrl.synset.relations"
-                                                   fullname="Domains (region)"></relation>
-                <relation relation="domain_topic" display="$ctrl.display"
-                                                  targetsynsets="$ctrl.targetsynsets"
-                                                  relations="$ctrl.synset.relations"
-                                                  fullname="Domains (topic)"></relation>
-                <relation relation="entails" display="$ctrl.display"
-                                             targetsynsets="$ctrl.targetsynsets"
-                                             relations="$ctrl.synset.relations"
-                                             fullname="Entails"></relation>
-                <relation relation="exemplifies" display="$ctrl.display"
-                                                 targetsynsets="$ctrl.targetsynsets"
-                                                 relations="$ctrl.synset.relations"
-                                                 fullname="Exemplifies"></relation>
-                <relation relation="has_domain_region" display="$ctrl.display"
-                                                       targetsynsets="$ctrl.targetsynsets"
-                                                       relations="$ctrl.synset.relations"
-                                                       fullname="Members (region)"></relation>
-                <relation relation="has_domain_topic" display="$ctrl.display"
-                                                      targetsynsets="$ctrl.targetsynsets"
-                                                      relations="$ctrl.synset.relations"
-                                                      fullname="Members (topic)"></relation>
-                <relation relation="holo_member" display="$ctrl.display"
-                                                 targetsynsets="$ctrl.targetsynsets"
-                                                 relations="$ctrl.synset.relations"
-                                                 fullname="Holonyms (member)"></relation>
-                <relation relation="holo_part" display="$ctrl.display"
-                                               targetsynsets="$ctrl.targetsynsets"
-                                               relations="$ctrl.synset.relations"
-                                               fullname="Holonyms (part)"></relation>
-                <relation relation="holo_substance" display="$ctrl.display"
-                                                    targetsynsets="$ctrl.targetsynsets"
-                                                    relations="$ctrl.synset.relations"
-                                                    fullname="Holonyms (substance)"></relation>
-                <relation relation="also" display="$ctrl.display"
-                                          targetsynsets="$ctrl.targetsynsets"
-                                          relations="$ctrl.synset.relations"
-                                          fullname="See Also"></relation>
-                <relation relation="instance_hypernym" display="$ctrl.display"
-                                                       targetsynsets="$ctrl.targetsynsets"
-                                                       relations="$ctrl.synset.relations"
-                                                       fullname="Is Instance of"></relation>
-                <relation relation="instance_hyponym" display="$ctrl.display"
-                                                      targetsynsets="$ctrl.targetsynsets"
-                                                      relations="$ctrl.synset.relations"
-                                                      fullname="Instances"></relation>
-                <relation relation="is_exemplified_by" display="$ctrl.display"
-                                                       targetsynsets="$ctrl.targetsynsets"
-                                                       relations="$ctrl.synset.relations"
-                                                       fullname="Is Exemplified By"></relation>
-                <relation relation="mero_member" display="$ctrl.display"
-                                                 targetsynsets="$ctrl.targetsynsets"
-                                                 relations="$ctrl.synset.relations"
-                                                 fullname="Meronyms (member)"></relation>
-                <relation relation="mero_part" display="$ctrl.display"
-                                               targetsynsets="$ctrl.targetsynsets"
-                                               relations="$ctrl.synset.relations"
-                                               fullname="Meronyms (part)"></relation>
-                <relation relation="mero_substance" display="$ctrl.display"
-                                                    targetsynsets="$ctrl.targetsynsets"
-                                                    relations="$ctrl.synset.relations"
-                                                    fullname="Meronyms (substance)"></relation>
-                <relation relation="participle" display="$ctrl.display"
-                                                targetsynsets="$ctrl.targetsynsets"
-                                                relations="$ctrl.synset.relations"
-                                                fullname="Participles"></relation>
-                <relation relation="pertainym" display="$ctrl.display"
-                                               targetsynsets="$ctrl.targetsynsets"
-                                               relations="$ctrl.synset.relations"
-                                               fullname="Pertainyms"></relation>
-                <relation relation="similar" display="$ctrl.display"
-                                             targetsynsets="$ctrl.targetsynsets"
-                                             relations="$ctrl.synset.relations"
-                                             fullname="Similar to"></relation>
-                <relation relation="verb_group" display="$ctrl.display"
-                                                targetsynsets="$ctrl.targetsynsets"
-                                                relations="$ctrl.synset.relations"
-                                                fullname="Verb groups"></relation>
-                <a class="btn" href="#" ng-show="$ctrl.targetsynsetsextra.length > 0"
-                ng-click="$ctrl.extendtargetsynsets()">Load More</a>-->
+                <span v-if="synset.hyponym">
+                    <div class="relation-title">
+                        <a @click="show_hyponyms = !show_hyponyms">Hyponyms ({{ synset.hyponym.length }})</a>
+                    </div>
+                    <synset 
+                      v-if="show_hyponyms"
+                      v-for="hyponym in synset.hyponym"
+                      :synset="targetsynsets[hyponym]"
+                      :display="display"
+                      focus=""
+                      :entries="targetentries[hyponym]"></synset>
+                </span>
+                <span v-if="synset.instance_hypernym">
+                    <div class="relation-title">
+                        <a @click="show_instance_hypernym = !show_instance_hypernym">Instance Of ({{ synset.instance_hypernym.length }})</a>
+                    </div>
+                    <synset 
+                      v-if="show_instance_hypernym"
+                      v-for="instance_hypernym in synset.instance_hypernym"
+                      :synset="targetsynsets[instance_hypernym]"
+                      :display="display"
+                      focus=""
+                      :entries="targetentries[instance_hypernym]"></synset>
+                </span>
+                <span v-if="synset.instance_hyponym">
+                    <div class="relation-title">
+                        <a @click="show_instance_hyponym = !show_instance_hyponym">Instances ({{ synset.instance_hyponym.length }})</a>
+                    </div>
+                    <synset 
+                      v-if="show_instance_hyponym"
+                      v-for="instance_hyponym in synset.instance_hyponym"
+                      :synset="targetsynsets[instance_hyponym]"
+                      :display="display"
+                      focus=""
+                      :entries="targetentries[instance_hyponym]"></synset>
+                </span>
+                <span v-if="synset.antonym">
+                    <div class="relation-title">
+                        <a @click="show_antonym = !show_antonym">Antonyms ({{ synset.antonym.length }})</a>
+                    </div>
+                    <span v-for="antonym in synset.antonym">
+                        {{ antonym.source_lemma }} &rarr; {{ antonym.target_lemma }}:
+                        <synset 
+                          v-if="show_antonym"
+                          :synset="targetsynsets[antonym.target_synset]"
+                          :display="display"
+                          focus=""
+                          :entries="targetentries[antonym.target_synset]"></synset>
+                    </span>
+                </span>
+
             </div>
             <div class="more">
-                <a href="#"
+                <a 
                    v-show="!show_relations"
                    @click="load_targets()">MORE &#x25B6;</a>
             </div>
