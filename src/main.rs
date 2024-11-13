@@ -46,7 +46,7 @@ fn index() -> RawHtml<&'static str> {
 #[get("/autocomplete/<index>/<query>")]
 fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     let state = STATE.get().expect("State not set");
-    let results = if index == "lemma" {
+    let mut results = if index == "lemma" {
         state.wn.lemma_by_prefix(query)
     } else if index == "ili" {
         state.wn.ili_by_prefix(query)
@@ -55,6 +55,12 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     } else {
         Vec::new()
     };
+    results.sort_by(|a, b| {
+        match a.to_lowercase().cmp(&b.to_lowercase()) {
+            std::cmp::Ordering::Equal => a.cmp(b).reverse(),
+            x => x
+        }
+    });
     let results = results.iter().take(100).collect::<Vec<_>>();
     RawJson(serde_json::to_string(&results).expect("Failed to serialize"))
 }

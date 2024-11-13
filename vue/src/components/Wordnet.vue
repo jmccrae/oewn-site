@@ -7,6 +7,7 @@
             return {
                 index: 'lemma',
                 query: '',
+                lastQuery: '',
                 results: [],
                 query_cleared: false,
                 display_opts: false,
@@ -26,11 +27,17 @@
         },
         methods: {
             querySearch() {
+                if(this.query == null || this.query == "" || this.query === this.lastQuery) {
+                    return;
+                }
+                console.log(this.query);
+                const query = this.query;
                 axios
-                    .get('/json/' + this.index + '/' + this.query)
+                    .get('/json/' + this.index + '/' + query)
                     .then(response => {
                         this.synsets = response.data.synsets;
                         this.entries = response.data.entries;
+                        this.lastQuery = query;
                     })
                     .catch(error => {
                         console.log(error);
@@ -58,6 +65,9 @@
         watch: {
             searchTerm(val) {
                 this.autocomplete();
+            },
+            query(newVal) {
+                this.querySearch();
             }
         },
         components: {
@@ -89,7 +99,9 @@
                             v-model:search="searchTerm"
                             @change="querySearch"
                             :debounce="300"
-                            :loading="loading"></v-autocomplete>
+                            :loading="loading"
+                            auto-select-first
+                            ></v-autocomplete>
                     </td>
                 </tr>
             </table>
@@ -115,25 +127,29 @@
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'n')">
             <h3 class="pos_label">Nouns</h3>
             <div v-for="ss in synsets">
-                <synset :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
+                <synset v-if="ss.partOfSpeech == 'n'"
+                :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
             </div>
         </span>
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'v')">
             <h3 class="pos_label">Verbs</h3>
-            <div v-for="(id, synset) in synsets">
-                <synset v-if="synset.partOfSpeech == 'v'" synset="synset" display="display" focus="focus"></synset>
+            <div v-for="ss in synsets">
+                <synset v-if="ss.partOfSpeech == 'v'"
+                :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
             </div>
         </span>
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'r')">
             <h3 class="pos_label">Adverbs</h3>
-            <div v-for="(id, synset) in synsets">
-                <synset v-if="synset.partOfSpeech == 'r'" synset="synset" display="display" focus="focus"></synset>
+            <div v-for="ss in synsets">
+                <synset v-if="ss.partOfSpeech == 'r'"
+                :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
             </div>
         </span>
         <span class="pos_grp" v-if="Object.values(synsets).some(ss => ss.partOfSpeech == 'a' || ss.partOfSpeech == 's')">
             <h3 class="pos_label">Adjectives</h3>
-            <div v-for="(id, synset) in synsets">
-                <synset v-if="synset.partOfSpeech == 'a' || synset.partOfSpeech == 's'" synset="synset" display="display" focus="focus"></synset>
+            <div v-for="ss in synsets">
+                <synset v-if="ss.partOfSpeech == 'a' || ss.partOfSpeech == 's'"
+                :synset="ss" :display="display" :focus="focus" :entries="entries"></synset>
             </div>
         </span>
         <div class="text-right" ng-show="link">
