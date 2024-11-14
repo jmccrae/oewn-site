@@ -43,6 +43,21 @@ fn index() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
+#[get("/lemma/<_id>")]
+fn get_lemma(_id: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
+#[get("/id/<_id>")]
+fn get_id(_id: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
+#[get("/ili/<_id>")]
+fn get_ili(_id: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
 #[get("/autocomplete/<index>/<query>")]
 fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     let state = STATE.get().expect("State not set");
@@ -141,7 +156,8 @@ fn rocket() -> _ {
             rocket::custom(&rocket_config)
                 .manage(state)
                 .mount("/assets", FileServer::from("dist/assets"))
-                .mount("/", routes![index, json, autocomplete])
+                .mount("/", routes![index, json, autocomplete, 
+                    get_lemma, get_id, get_ili])
         },
         Err(msg) => {
             eprintln!("{}", msg);

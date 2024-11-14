@@ -30,13 +30,13 @@
                 if(this.query == null || this.query == "" || this.query === this.lastQuery) {
                     return;
                 }
-                console.log(this.query);
                 const query = this.query;
                 axios
                     .get('/json/' + this.index + '/' + query)
                     .then(response => {
                         this.synsets = response.data.synsets;
                         this.entries = response.data.entries;
+                        this.$router.push("/" + this.index + "/" + query);
                         this.lastQuery = query;
                     })
                     .catch(error => {
@@ -72,6 +72,13 @@
         },
         components: {
             synset
+        },
+        beforeMount() {
+            if (this.$route.params.index && this.$route.params.query) {
+                this.index = this.$route.params.index;
+                this.query = this.$route.params.query;
+                this.querySearch();
+            }
         }
     }
 </script>

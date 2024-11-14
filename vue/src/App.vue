@@ -11,7 +11,7 @@
                       </tr>
                   </table>
               </v-row>
-              <Wordnet></Wordnet>
+              <RouterView/>
               <footer class="footer">
                   <div class="container">
                       <div style="text-align:center;">
@@ -31,15 +31,8 @@
 </template>
 
 <script>
-    import Wordnet from './components/Wordnet.vue'
-    import synset from './components/synset.vue'
-
     export default {
         name: 'App',
-
-        components: {
-            Wordnet, synset
-        },
 
         data: () => ({
             //
