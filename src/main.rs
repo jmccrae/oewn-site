@@ -6,6 +6,7 @@ use clap::Parser;
 use rocket::config::Config as RocketConfig;
 use rocket::fs::FileServer;
 use rocket::response::content::{RawHtml, RawJson};
+use rocket::http::ContentType;
 use once_cell::sync::OnceCell;
 use wordnet::{Lexicon, SynsetId, Synset, Entry};
 use std::collections::HashMap;
@@ -58,6 +59,11 @@ fn get_ili(_id: &str) -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
+#[get("/favicon.ico")]
+fn favicon() -> (ContentType, &'static [u8]) {
+    (ContentType::Icon, include_bytes!("favicon.ico"))
+}
+
 #[get("/autocomplete/<index>/<query>")]
 fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     let state = STATE.get().expect("State not set");
@@ -83,14 +89,28 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
 #[derive(Serialize)]
 struct JsonResponse<'a> {
     synsets: Vec<&'a Synset>,
-    entries: HashMap<String, Vec<&'a Entry>>
+    entries: HashMap<String, Vec<&'a Entry>>,
+    target_labels: HashMap<String, String>,
 }
 
 impl<'a> JsonResponse<'a> {
     fn new() -> Self {
         JsonResponse {
             synsets: Vec::new(),
-            entries: HashMap::new()
+            entries: HashMap::new(),
+            target_labels: HashMap::new()
+        }
+    }
+
+    fn add_targets(&mut self, lexicon : &Lexicon) {
+        for synset in self.synsets.iter() {
+            for target in synset.domain_topic.iter() {
+                if let Some(target_synset) = lexicon.synset_by_id(target) {
+                    self.target_labels.insert(target.to_string(), 
+                        target_synset.members.iter().next()
+                        .map(|x| x.to_string()).unwrap_or("".to_string()));
+                }
+            }
         }
     }
 }
@@ -142,6 +162,7 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
     } else {
         return Err("Invalid index".to_string())
     }
+    response.add_targets(&state.wn);
     Ok(RawJson(serde_json::to_string(&response).map_err(|e| format!("Failed to serialize: {}", e))?))
 }
 
@@ -157,7 +178,8 @@ fn rocket() -> _ {
                 .manage(state)
                 .mount("/assets", FileServer::from("dist/assets"))
                 .mount("/", routes![index, json, autocomplete, 
-                    get_lemma, get_id, get_ili])
+                    get_lemma, get_id, get_ili,
+                    favicon])
         },
         Err(msg) => {
             eprintln!("{}", msg);

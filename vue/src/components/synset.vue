@@ -3,7 +3,7 @@
 
     export default {
         name: "synset",
-        props: ["synset", "entries", "display", "focus"],
+        props: ["synset", "entries", "display", "focus", "target_labels"],
         data() {
             return {
                 show_relations: false,
@@ -82,6 +82,20 @@
                     }
                 }
                 return 0;
+            },
+            pronunciation(member) {
+                for (const entry of this.entries[member]) {
+                    for (const sense of entry.sense) {
+                        if (sense.synset == this.synset.id) {
+                            if(entry.pronunciation) {
+                                return entry.pronunciation;
+                            } else {
+                                return [];
+                            }
+                        }
+                    }
+                }
+                return [];
             },
             load_targets() {
                 let targets = [];
@@ -291,23 +305,23 @@
         </div>
 
         <div class="lemmas">
-            <span class="pos">({{synset.partOfSpeech}})</span>
+            <span class="pos">({{synset.partOfSpeech}}) </span>
             <span class="lemma" v-for="(member, index) in synset.members">
                 <a target="_self" v-bind:href="'/lemma/' + member" :class="{ underline: member === focus }">{{ member }}</a>
                 <span v-if="entryNo(member) > 0"><sup>{{ entryNo(member) }}</sup></span>
                 <span v-if="!display.sensekeys && !display.pronunciation && index != synset.members.length - 1">, </span>
-                <!--<span v-if="display.pronunciation && sense.pronunciations.length > 0" class="pronunciation">
+                <span v-if="index == synset.members.length - 1"> </span>
+                <span v-if="display.pronunciation && pronunciation(member).length > 0" class="pronunciation">
                     (Pronunciation:
-                    <span v-for="pron in sense.pronunciations">
+                    <span v-for="(pron, index) in pronunciation(member)">
                         <span v-if="pron.variety" class="pronunciation_variety">({{pron.variety}})</span>
-                        {{pron.value}}{{$last ? '' : ', '}}</span>)
-                </span><span v-if="!display.sensekeys && display.pronunciation">{{$last ? '' : ','}}</span><span v-bind="sense.sense_key" class="sense_key" v-if="display.sensekeys"></span><span v-if="display.sensekeys">{{$last ? '' : ','}}</span>-->
-            </span>
-            <!--<span v-for="rel in synset.relations">
-                <span v-if="'rel_type'=='domain_topic'">
-                    ((<i><a v-bind:href="'/id/' + rel.target" target="_blank" v-for="r in targetsynsets"><span v-if="id == rel.target">{{r.lemmas[0].lemma}}</span></a></i>))
+                        {{pron.value}}{{index == pronunciation(member).length - 1 ? '' : ', '}}
+                    </span>)&nbsp;
                 </span>
-            </span>-->
+            </span>
+            <span v-for="rel in synset.domain_topic || []">
+                ((<i><a v-bind:href="'/id/' + rel" target="_blank">{{ target_labels[rel] }}</a></i>))
+            </span>
             <span class="definition">{{ synset.definition[0] }}</span>
             <span v-for="example in synset.example" class="example"> 
                 <span v-if='!example.startsWith("\"")'>&ldquo;</span>{{example}}<span v-if='!example.startsWith("\"")'>&rdquo;</span>

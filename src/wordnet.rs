@@ -772,6 +772,7 @@ pub struct SynsetId(String);
 
 impl SynsetId {
     pub fn new(s : &str) -> SynsetId { SynsetId(s.to_string()) }
+    pub fn to_string(&self) -> String { self.0.clone() }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]

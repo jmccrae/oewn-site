@@ -1,15 +1,15 @@
 <template>
   <v-app>
       <v-main>
-          <v-container>
+          <v-container fill-height style="max-width: 1140px;">
               <v-row>
-                  <table width="100%">
-                      <tr>
-                          <td width="125px"><img src="./assets/english.svg"/></td>
-                          <td width="600px"><h1 class="en-title">Open English WordNet</h1></td>
-                          <td></td>
-                      </tr>
-                  </table>
+                  <v-col sm="2" cols="12" class="d-flex justify-center align-center">
+                      <img src="./assets/english.svg" style="width: 125px;"/>
+                  </v-col>
+                  <v-col sm="5" cols="12">
+                      <h1 class="en-title">Open English WordNet</h1>
+                  </v-col>
+                  <v-col></v-col>
               </v-row>
               <RouterView/>
               <footer class="footer">
