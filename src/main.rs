@@ -1,8 +1,10 @@
 #[macro_use] extern crate rocket;
 
 mod wordnet;
+mod hbs;
 
 use clap::Parser;
+use handlebars::Handlebars;
 use rocket::config::Config as RocketConfig;
 use rocket::fs::FileServer;
 use rocket::response::content::{RawHtml, RawJson};
@@ -24,8 +26,9 @@ struct Config {
     wn: Option<String>
 }
 
-struct State {
-    wn : wordnet::Lexicon
+struct State<'a> {
+    wn : wordnet::Lexicon,
+    handlebars : Handlebars<'a>
 }
 
 static STATE: OnceCell<State> = OnceCell::new();
@@ -33,8 +36,14 @@ static STATE: OnceCell<State> = OnceCell::new();
 fn prepare_server(config : &Config) -> Result<(), String> {
     let wn = Lexicon::load(config.wn.clone().unwrap_or(".".to_string()))
         .map_err(|e| format!("Failed to load WordNet: {}", e))?;
+    let mut handlebars = Handlebars::new();
+    handlebars.register_template_string("xml", include_str!("hbs/xml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_template_string("rdfxml", include_str!("hbs/rdfxml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_template_string("ttl", include_str!("hbs/ttl.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_helper("lemma_escape", Box::new(hbs::lemma_escape));
+    handlebars.register_helper("long_pos", Box::new(hbs::long_pos));
 
-    STATE.set(State { wn }).map_err(|_| "Failed to set state".to_string())?;
+    STATE.set(State { wn, handlebars }).map_err(|_| "Failed to set state".to_string())?;
 
     Ok(())
 }
@@ -56,6 +65,11 @@ fn get_id(_id: &str) -> RawHtml<&'static str> {
 
 #[get("/ili/<_id>")]
 fn get_ili(_id: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
+#[get("/downloads")]
+fn downloads() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
@@ -115,11 +129,8 @@ impl<'a> JsonResponse<'a> {
     }
 }
 
-#[get("/json/<index>/<id>")]
-fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
-    let state = STATE.get().expect("State not set");
+fn resolve_query<'a>(state: &'a State, index : &str, id : &str) -> Result<JsonResponse<'a>, String> {
     let mut response = JsonResponse::new();
-    eprintln!("{} {}", index, id);
     if index == "id" {
         let ssid = SynsetId::new(id);
         if let Some(synset) = state.wn.synset_by_id(&ssid) {
@@ -162,9 +173,45 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
     } else {
         return Err("Invalid index".to_string())
     }
+    Ok(response)
+}
+
+#[get("/json/<index>/<id>")]
+fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
+    let state = STATE.get().expect("State not set");
+    let mut response = resolve_query(&state, index, id)?;
     response.add_targets(&state.wn);
     Ok(RawJson(serde_json::to_string(&response).map_err(|e| format!("Failed to serialize: {}", e))?))
 }
+
+#[get("/ttl/<index>/<query>")]
+fn turtle(index : &str, query : &str) -> Result<(ContentType, String) , String> {
+    let state = STATE.get().expect("State not set");
+    let response = resolve_query(&state, index, query)?;
+    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    Ok((ContentType::new("text", "turtle"),
+        state.handlebars.render("ttl", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
+}
+
+#[get("/rdf/<index>/<query>")]
+fn rdfxml(index : &str, query : &str) -> Result<(ContentType, String) , String> {
+    let state = STATE.get().expect("State not set");
+    let response = resolve_query(&state, index, query)?;
+    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    Ok((ContentType::new("application", "rdf+xml"),
+        state.handlebars.render("rdfxml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
+}
+
+#[get("/xml/<index>/<query>")]
+fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
+    let state = STATE.get().expect("State not set");
+    let response = resolve_query(&state, index, query)?;
+    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    Ok((ContentType::new("application", "xml"),
+        state.handlebars.render("xml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
+}
+
+
 
 #[launch]
 fn rocket() -> _ {
@@ -179,7 +226,8 @@ fn rocket() -> _ {
                 .mount("/assets", FileServer::from("dist/assets"))
                 .mount("/", routes![index, json, autocomplete, 
                     get_lemma, get_id, get_ili,
-                    favicon])
+                    favicon, downloads, turtle,
+                    rdfxml, xml])
         },
         Err(msg) => {
             eprintln!("{}", msg);

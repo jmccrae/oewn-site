@@ -178,10 +178,10 @@
     <v-row>
         <v-col sm="9" cols="12"></v-col>
         <v-col sm="3" cols="12">
-            <div class="text-right" ng-show="link">
-                <b>Download As:</b>&nbsp;&nbsp;<a target="_self" ng-href="/json/{{link}}">JSON</a>&nbsp;&nbsp;
-                <a target="_self" ng-href="/ttl/{{link}}">RDF</a>&nbsp;&nbsp;
-                <a target="_self" ng-href="/xml/{{link}}">XML</a>
+            <div class="text-right" v-if="Object.keys(synsets).length > 0">
+                <b>Download As:</b>&nbsp;&nbsp;<a target="_self" v-bind:href="'/json/' + index + '/' + query">JSON</a>&nbsp;&nbsp;
+                <a target="_self" v-bind:href="'/ttl/' + index + '/' + query">RDF</a>&nbsp;&nbsp;
+                <a target="_self" v-bind:href="'/xml/' + index + '/' + query">XML</a>
             </div>
         </v-col>
     </v-row>

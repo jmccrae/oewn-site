@@ -1,0 +1,62 @@
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix ili: <http://ili.globalwordnet.org/ili/> .
+@prefix lime: <http://www.w3.org/ns/lemon/lime#> .
+@prefix ontolex: <http://www.w3.org/ns/lemon/ontolex#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <http://schema.org/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix synsem: <http://www.w3.org/ns/lemon/synsem#> .
+@prefix wn: <https://globalwordnet.github.io/schemas/wn#> .
+@prefix wordnetlicense: <{{license}}> .
+@prefix wnlemma: <{{site}}/lemma/> .
+@prefix wnid: <{{site}}/id/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+
+{{#each entries}}
+{{#each this}}
+<#{{lemma_escape @key}}>
+  ontolex:canonicalForm [
+    ontolex:writtenRep "{{this.0.lemmas.0.lemma}}"@{{this.0.lemmas.0.language}}
+  ] ;
+{{#each this}}  ontolex:sense <#{{lemma_escape lemmas.0.lemma}}-{{id}}> ; 
+{{/each}}
+{{#each this.0.lemmas.0.subcats}}  synsem:synBehavior [ rdfs:label "{{this}}"@en ] ; 
+{{/each}} 
+  wn:partOfSpeech wn:{{long_pos this.0.pos}} ;
+  a ontolex:LexicalEntry .  
+
+{{/each}}
+{{/each}}
+
+{{#each entries}}{{#each this}}{{#each this}}
+<#{{lemma_escape lemmas.0.lemma}}-{{id}}>
+{{#each relations}}{{#if src_word}}  wn:{{rel_type}} <{{../../../../site}}/rdf/lemma/{{lemma_escape trg_word}}#{{lemma_escape trg_word}}-{{target}}> ; 
+{{/if}}{{/each}}
+  ontolex:isLexicalizedSenseOf wnid:{{id}} ;
+  a ontolex:LexicalSense .
+{{#each relations}}{{#if src_word}}
+[] a ontolex:SenseRelation ;
+  vartrans:source <#{{lemma_escape ../lemmas.0.lemma}}-{{../id}}> ;
+  vartrans:category wn:{{rel_type}} ;
+  vartrans:target <{{../../../../site}}/rdf/lemma/{{lemma_escape trg_word}}#{{lemma_escape trg_word}}-{{target}}> .
+{{/if}}{{/each}}{{/each}}{{/each}}{{/each}}
+
+{{#each synsets}}
+wnid:{{id}}
+  wn:ili ili:{{ili}} ;
+  wn:partOfSpeech wn:{{long_pos pos}} ;
+  dc:subject "{{subject}}" ;
+  wn:definition [ rdf:value "{{definition}}"@en ] ;
+{{#each relations}}{{#if src_word}}{{else}}  wn:{{rel_type}} wnid:{{target}} ; 
+{{/if}}{{/each}}
+   a ontolex:LexicalConcept ;
+   skos:inScheme <{{../site}}/> .
+{{#each relations}}{{#if src_word}}{{else}}
+[] 
+  vartrans:source wnid:{{../id}} ;
+  vartrans:category wn:{{rel_type}} ;
+  vartrans:target wnid:{{target}} .
+{{/if}}{{/each}}
+{{/each}}

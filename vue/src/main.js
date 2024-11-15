@@ -5,6 +5,7 @@ import { loadFonts } from './plugins/webfontloader'
 import { createWebHistory, createRouter } from 'vue-router'
 import Wordnet from './components/Wordnet.vue'
 import editor from './components/editor.vue'
+import downloads from './components/downloads.vue'
 import './assets/main.css'
 import './assets/fonts.css'
 
@@ -14,6 +15,7 @@ const routes = [
     { path: "/:index/:query", component: Wordnet },
     { path: '/', component: Wordnet },
     { path: '/edit', component: editor },
+    { path: '/downloads', component: downloads }
     //{ path: '/:index/:query', component: Wordnet, props: true }
 ]
 

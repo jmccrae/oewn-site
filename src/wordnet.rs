@@ -39,7 +39,7 @@ impl Lexicon {
         let folder_files = fs::read_dir(folder)
             .map_err(|e| WordNetYAMLIOError::Io(format!("Could not list directory: {}", e)))?;
         println!("Loading WordNet");
-        let bar = ProgressBar::new(73);
+        let bar = ProgressBar::new(74);
         for file in folder_files {
             let file = file.map_err(|e|
                 WordNetYAMLIOError::Io(format!("Could not list directory: {}", e)))?;
@@ -360,7 +360,7 @@ pub struct Entry {
     pub form : Vec<String>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pronunciation : Vec<Pronunciation>,
+    pub pronunciation : Vec<Pronunciation>,
     #[serde(default)]
     pub poskey : Option<PosKey>
 }
@@ -495,13 +495,13 @@ pub struct Synset {
     pub part_of_speech : PartOfSpeech,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    also : Vec<SynsetId>,
+    pub also : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    attribute : Vec<SynsetId>,
+    pub attribute : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    causes : Vec<SynsetId>,
+    pub causes : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub domain_region : Vec<SynsetId>,
@@ -513,7 +513,7 @@ pub struct Synset {
     pub exemplifies : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    entails : Vec<SynsetId>,
+    pub entails : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hypernym : Vec<SynsetId>,
@@ -522,13 +522,13 @@ pub struct Synset {
     pub instance_hypernym : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    mero_member : Vec<SynsetId>,
+    pub mero_member : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    mero_part : Vec<SynsetId>,
+    pub mero_part : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    mero_substance : Vec<SynsetId>,
+    pub mero_substance : Vec<SynsetId>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub similar : Vec<SynsetId>,
@@ -761,10 +761,44 @@ impl ILIID {
 #[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
 pub enum PartOfSpeech { n, v, a, r, s }
 
+impl PartOfSpeech {
+    pub fn str(&self) -> &'static str {
+        match *self {
+            PartOfSpeech::n => "n",
+            PartOfSpeech::v => "v",
+            PartOfSpeech::a => "a",
+            PartOfSpeech::r => "r",
+            PartOfSpeech::s => "s"
+        }
+    }
+    pub fn from_str(s : &str) -> Result<PartOfSpeech, String> {
+        match s {
+            "n" => Ok(PartOfSpeech::n),
+            "v" => Ok(PartOfSpeech::v),
+            "a" => Ok(PartOfSpeech::a),
+            "r" => Ok(PartOfSpeech::r),
+            "s" => Ok(PartOfSpeech::s),
+            _ => Err(format!("Unknown part of speech: {}", s))
+        }
+    }
+    pub fn as_long_string(&self) -> &'static str {
+        match *self {
+            PartOfSpeech::n => "noun",
+            PartOfSpeech::v => "verb",
+            PartOfSpeech::a => "adjective",
+            PartOfSpeech::s => "adjective_satellite",
+            PartOfSpeech::r => "adverb",
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash)]
 pub struct SenseId(String);
 
 impl SenseId {
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]
