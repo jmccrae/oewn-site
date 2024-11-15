@@ -1,5 +1,6 @@
 <script>
     import axios from 'axios';
+    import subcat from './subcat.vue';
 
     export default {
         name: "synset",
@@ -96,6 +97,36 @@
                     }
                 }
                 return [];
+            },
+            sensekey(member) {
+                for (const entry of this.entries[member]) {
+                    for (const sense of entry.sense) {
+                        if (sense.synset == this.synset.id) {
+                            return sense.id;
+                        }
+                    }
+                }
+                return "";
+            },
+            subcats() {
+                let subcats = {};
+                for (const [member, entries] of Object.entries(this.entries)) {
+                    for (const entry of entries) {
+                        for (const sense of entry.sense) {
+                            if (sense.synset == this.synset.id) {
+                                if (sense.subcat) {
+                                    for (const subcat of sense.subcat) {
+                                        if (!subcats[subcat]) {
+                                            subcats[subcat] = [];
+                                        }
+                                        subcats[subcat].push(member);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return subcats;
             },
             load_targets() {
                 let targets = [];
@@ -293,6 +324,9 @@
                     });
             }
         },
+        components: {
+            subcat
+        },
     }
 </script>
 
@@ -309,8 +343,7 @@
             <span class="lemma" v-for="(member, index) in synset.members">
                 <a target="_self" v-bind:href="'/lemma/' + member" :class="{ underline: member === focus }">{{ member }}</a>
                 <span v-if="entryNo(member) > 0"><sup>{{ entryNo(member) }}</sup></span>
-                <span v-if="!display.sensekeys && !display.pronunciation && index != synset.members.length - 1">, </span>
-                <span v-if="index == synset.members.length - 1"> </span>
+                <span v-if="display.sensekeys" class="sense_key"> {{ sensekey(member) }}</span>
                 <span v-if="display.pronunciation && pronunciation(member).length > 0" class="pronunciation">
                     (Pronunciation:
                     <span v-for="(pron, index) in pronunciation(member)">
@@ -318,6 +351,8 @@
                         {{pron.value}}{{index == pronunciation(member).length - 1 ? '' : ', '}}
                     </span>)&nbsp;
                 </span>
+                <span v-if="index != synset.members.length - 1">, </span>
+                <span v-if="index == synset.members.length - 1"> </span>
             </span>
             <span v-for="rel in synset.domain_topic || []">
                 ((<i><a v-bind:href="'/id/' + rel" target="_blank">{{ target_labels[rel] }}</a></i>))
@@ -329,12 +364,8 @@
             <div v-if="display.topics" class="topic">
                 <b>Topic: </b> {{ synset.lexname }}
             </div>
-            <!--<div ng-if="display.subcats" class="subcats">
-                <b>Subcategorization Frames:</b>
-                <!--<ul ng-repeat="sense in $ctrl.synset.lemmas" ng-if="$ctrl.hasSubcats()">
-                    <li class="subcat" ng-repeat="subcat in sense.subcats">{{$ctrl.replaceSubcat(subcat, sense.lemma)}}</span>
-                </ul>--><!--
-            </div>-->
+            <subcat v-if="display.subcats"
+                    :subcats="subcats()"></subcat>
             <div v-show="show_relations" class="relations">
                 <span v-if="synset.hypernym">
                     <div class="relation-title">

@@ -88,8 +88,8 @@
 
 <template>
     <v-row>
-        <v-col sm="1" cols="12" class="d-flex justify-center align-center">
-            <v-btn variant="text">{{index}}
+        <v-col sm="1" cols="12" class="d-flex justify-center">
+            <v-btn variant="text" style="margin-top:13px;">{{index}}
                 <v-menu activator="parent">
                     <v-list>
                         <v-list-item @click="index = 'lemma'">Lemma</v-list-item>
@@ -110,8 +110,8 @@
                 auto-select-first
                 ></v-autocomplete>
         </v-col>
-        <v-col sm="1" cols="12" class="d-flex justify-center align-center">
-            <v-btn
+        <v-col sm="1" cols="12" class="d-flex justify-center">
+            <v-btn style="margin-top:13px;"
                 id="opts-activator"
                 variant="text">Options</v-btn>
             <v-menu activator="#opts-activator"
@@ -119,27 +119,19 @@
                 location="bottom end">
                 <v-card min-width="300">
                     <v-list density="compact">
-                        <v-list-item>
+                        <v-list-item density="compact">
                             <v-switch v-model="display.ids" label="Synset Identifiers"></v-switch>
                         </v-list-item>
-                    </v-list>
-                    <v-list>
-                        <v-list-item>
+                        <v-list-item density="compact">
                             <v-switch v-model="display.sensekeys" label="Sense Keys"></v-switch>
                         </v-list-item>
-                    </v-list>
-                    <v-list>
-                        <v-list-item>
+                        <v-list-item density="compact">
                             <v-switch v-model="display.subcats" label="Subcategorization Frames"></v-switch>
                         </v-list-item>
-                    </v-list>
-                    <v-list>
-                        <v-list-item>
+                        <v-list-item density="compact">
                             <v-switch v-model="display.topics" label="Topics"></v-switch>
                         </v-list-item>
-                    </v-list>
-                    <v-list>
-                        <v-list-item>
+                        <v-list-item density="compact">
                             <v-switch v-model="display.pronunciation" label="Pronunciation"></v-switch>
                         </v-list-item>
                     </v-list>

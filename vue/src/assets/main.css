@@ -121,6 +121,8 @@ h3 {
 .synset-id hr {
     margin-top:2px;
     margin-bottom:2px;
+    border: 1px solid #eee;
+    height: 0px;
 }
 
 .relation-title a,.relation-title a:hover,.relation-title a:focus {
@@ -312,4 +314,12 @@ body.md-default-theme, body, html.md-default-theme, html {
 .pronunciation {
     font-size: 70%;
     font-family: serif;
+}
+
+.subcats ul {
+    padding-inline-start: 30px;
+}
+
+.v-switch .v-input__details {
+    display: none;
 }
