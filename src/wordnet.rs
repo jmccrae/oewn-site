@@ -324,6 +324,100 @@ impl Lexicon {
         add_sense_links!(body_part, is_body_part_of);
         add_sense_links!(vehicle, is_vehicle_of);
     }
+
+    pub fn synset_with_members(&self, synset : &Synset) -> MemberSynset {
+        let mut members = Vec::new();
+        for m in synset.members.iter() {
+            if let Some(entry) = self.entry_by_lemma(&m).first() {
+                for sense in entry.sense.iter() {
+                    if Some(&sense.synset) != synset.id.as_ref() {
+                        continue;
+                    }
+                    members.push(Member {
+                        lemma: m.clone(),
+                        sense: MemberSense {
+                            id: sense.id.clone(),
+                            subcat: sense.subcat.clone()
+                        },
+                        form: entry.form.clone(),
+                        pronunciation: entry.pronunciation.clone(),
+                        poskey: entry.poskey.clone(),
+                        entry_no: entry.poskey.as_ref().and_then(|x| x.entry_no())
+                    });
+                }
+            }
+        }
+        MemberSynset {
+            members,
+            id: synset.id.clone(),
+            lexname: synset.lexname.clone(),
+            definition: synset.definition.clone(),
+            example: synset.example.clone(),
+            ili: synset.ili.clone(),
+            wikidata: synset.wikidata.clone(),
+            source: synset.source.clone(),
+            part_of_speech: synset.part_of_speech.clone(),
+            also: synset.also.clone(),
+            attribute: synset.attribute.clone(),
+            causes: synset.causes.clone(),
+            domain_region: synset.domain_region.clone(),
+            domain_topic: synset.domain_topic.clone(),
+            exemplifies: synset.exemplifies.clone(),
+            entails: synset.entails.clone(),
+            hypernym: synset.hypernym.clone(),
+            instance_hypernym: synset.instance_hypernym.clone(),
+            mero_member: synset.mero_member.clone(),
+            mero_part: synset.mero_part.clone(),
+            mero_substance: synset.mero_substance.clone(),
+            similar: synset.similar.clone(),
+            hyponym: synset.hyponym.clone(),
+            is_caused_by: synset.is_caused_by.clone(),
+            has_domain_region: synset.has_domain_region.clone(),
+            has_domain_topic: synset.has_domain_topic.clone(),
+            is_exemplified_by: synset.is_exemplified_by.clone(),
+            is_entailed_by: synset.is_entailed_by.clone(),
+            instance_hyponym: synset.instance_hyponym.clone(),
+            holo_member: synset.holo_member.clone(),
+            holo_part: synset.holo_part.clone(),
+            holo_substance: synset.holo_substance.clone(),
+            antonym: synset.antonym.clone(),
+            participle: synset.participle.clone(),
+            is_participle_of: synset.is_participle_of.clone(),
+            pertainym: synset.pertainym.clone(),
+            is_pertainym_of: synset.is_pertainym_of.clone(),
+            derivation: synset.derivation.clone(),
+            exemplifies_sense: synset.exemplifies_sense.clone(),
+            is_exemplified_by_sense: synset.is_exemplified_by_sense.clone(),
+            agent: synset.agent.clone(),
+            is_agent_of: synset.is_agent_of.clone(),
+            material: synset.material.clone(),
+            is_material_of: synset.is_material_of.clone(),
+            event: synset.event.clone(),
+            is_event_of: synset.is_event_of.clone(),
+            instrument: synset.instrument.clone(),
+            is_instrument_of: synset.is_instrument_of.clone(),
+            location: synset.location.clone(),
+            is_location_of: synset.is_location_of.clone(),
+            by_means_of: synset.by_means_of.clone(),
+            is_by_means_of: synset.is_by_means_of.clone(),
+            undergoer: synset.undergoer.clone(),
+            is_undergoer_of: synset.is_undergoer_of.clone(),
+            property: synset.property.clone(),
+            is_property_of: synset.is_property_of.clone(),
+            result: synset.result.clone(),
+            is_result_of: synset.is_result_of.clone(),
+            state: synset.state.clone(),
+            is_state_of: synset.is_state_of.clone(),
+            uses: synset.uses.clone(),
+            is_used_by: synset.is_used_by.clone(),
+            destination: synset.destination.clone(),
+            is_destination_of: synset.is_destination_of.clone(),
+            body_part: synset.body_part.clone(),
+            is_body_part_of: synset.is_body_part_of.clone(),
+            vehicle: synset.vehicle.clone(),
+            is_vehicle_of: synset.is_vehicle_of.clone(),
+        }
+    }
 }
 
 fn entry_key(lemma : &str) -> String {
@@ -338,6 +432,16 @@ fn entry_key(lemma : &str) -> String {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]
 pub struct PosKey(String);
+
+impl PosKey {
+    fn entry_no(&self) -> Option<u32> {
+        if self.0.len() < 3 {
+            None
+        } else {
+            self.0[2..].parse().ok()
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Entries(pub BTreeMap<String, BTreeMap<PosKey, Entry>>);
@@ -460,6 +564,7 @@ pub struct Sense {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     sent : Vec<String>
 }
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
 pub struct Pronunciation {
@@ -672,6 +777,229 @@ pub struct Synset {
     pub is_vehicle_of: Vec<SenseRelation>,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+pub struct MemberSynset {
+    // not found in serialized data
+    #[serde(default)]
+    pub id : Option<SynsetId>,
+    // not found in serialized data
+    #[serde(default)]
+    pub lexname: Option<String>,
+    pub definition : Vec<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub example : Vec<Example>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ili : Option<ILIID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wikidata : Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source : Option<String>,
+    #[serde(default)]
+    pub members : Vec<Member>,
+    #[serde(rename="partOfSpeech")]
+    pub part_of_speech : PartOfSpeech,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub also : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub attribute : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub causes : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub domain_region : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub domain_topic : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exemplifies : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub entails : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hypernym : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub instance_hypernym : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mero_member : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mero_part : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mero_substance : Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub similar : Vec<SynsetId>,
+    /// Extra values that need to be inferred
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hyponym: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_caused_by: Vec<SynsetId>,
+    #[serde(skip)]
+    pub has_domain_region: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub has_domain_topic: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_exemplified_by: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_entailed_by: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub instance_hyponym: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub holo_member: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub holo_part: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub holo_substance: Vec<SynsetId>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub antonym: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub participle: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_participle_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pertainym: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_pertainym_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub derivation: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub exemplifies_sense: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_exemplified_by_sense: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub agent: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_agent_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub material: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_material_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub event: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_event_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub instrument: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_instrument_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub location: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_location_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub by_means_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_by_means_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub undergoer: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_undergoer_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub property: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_property_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub result: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_result_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub state: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_state_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub uses: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_used_by: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub destination: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_destination_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub body_part: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_body_part_of: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub vehicle: Vec<SenseRelation>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub is_vehicle_of: Vec<SenseRelation>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+pub struct Member {
+    pub lemma : String,
+    pub sense : MemberSense,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub form : Vec<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pronunciation : Vec<Pronunciation>,
+    #[serde(default)]
+    pub poskey : Option<PosKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_no : Option<u32>
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+pub struct MemberSense {
+    pub id : SenseId,
+    pub subcat: Vec<String>,
+}
+ 
 #[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
 pub struct SenseRelation {
     pub target_synset: SynsetId,

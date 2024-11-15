@@ -44,6 +44,7 @@ fn prepare_server(config : &Config) -> Result<(), String> {
     handlebars.register_template_string("rdfxml", include_str!("hbs/rdfxml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("ttl", include_str!("hbs/ttl.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("ttl-header", include_str!("hbs/ttl-header.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_template_string("html", include_str!("hbs/html.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_helper("lemma_escape", Box::new(hbs::lemma_escape));
     handlebars.register_helper("long_pos", Box::new(hbs::long_pos));
 
@@ -217,6 +218,19 @@ fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
         state.handlebars.render("xml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
 }
 
+#[get("/index/<ssid>")]
+fn html_synset(ssid : &str) -> Result<RawHtml<String>, String> {
+    let state = STATE.get().expect("State not set");
+    if let Some(synset) = state.wn.synset_by_id(&SynsetId::new(ssid)) {
+        let synset = state.wn.synset_with_members(&synset);
+        let content = state.handlebars.render("html", &synset).map_err(|e| format!("Failed to render template: {}", e))?;
+        Ok(RawHtml(content))
+    } else {
+        Err(format!("Failed to find synset {}", ssid))
+    }
+}
+
+
 fn dump_ttl(file : &str) -> Result<(), String> {
     let mut f = std::fs::File::create(file).map_err(|e| format!("Failed to open file: {}", e))?;
     let state = STATE.get().expect("State not set");
@@ -246,7 +260,7 @@ fn rocket() -> _ {
                 .mount("/", routes![index, json, autocomplete, 
                     get_lemma, get_id, get_ili,
                     favicon, downloads, turtle,
-                    rdfxml, xml])
+                    rdfxml, xml, html_synset])
         },
         Err(msg) => {
             eprintln!("{}", msg);
