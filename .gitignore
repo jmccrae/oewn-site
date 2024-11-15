@@ -3,3 +3,4 @@ vue/dist
 vue/node_modules
 Cargo.lock
 vue/package-lock.json
+wn.ttl.gz

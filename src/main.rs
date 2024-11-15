@@ -14,7 +14,6 @@ use wordnet::{Lexicon, SynsetId, Synset, Entry};
 use std::collections::HashMap;
 use serde::Serialize;
 
-
 #[derive(Parser,Debug)]
 #[command(name = "English WordNet Interface")]
 #[command(version = "1.0")]
@@ -23,7 +22,9 @@ struct Config {
     #[arg(short, long, default_value = "8000", help = "The port to start the server on")]
     port: u16,
     #[arg(long, help = "Reload the wordnet from the given folder")]
-    wn: Option<String>
+    wn: Option<String>,
+    #[arg(long, help = "Dump all the RDF Turtle data to this file (Server does not start)")]
+    dump_ttl : Option<String>,
 }
 
 struct State<'a> {
@@ -40,6 +41,7 @@ fn prepare_server(config : &Config) -> Result<(), String> {
     handlebars.register_template_string("xml", include_str!("hbs/xml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("rdfxml", include_str!("hbs/rdfxml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("ttl", include_str!("hbs/ttl.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_template_string("ttl-header", include_str!("hbs/ttl-header.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_helper("lemma_escape", Box::new(hbs::lemma_escape));
     handlebars.register_helper("long_pos", Box::new(hbs::long_pos));
 
@@ -189,8 +191,10 @@ fn turtle(index : &str, query : &str) -> Result<(ContentType, String) , String> 
     let state = STATE.get().expect("State not set");
     let response = resolve_query(&state, index, query)?;
     let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
-    Ok((ContentType::new("text", "turtle"),
-        state.handlebars.render("ttl", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
+    let mut content = String::new();
+    content.push_str(&state.handlebars.render("ttl-header", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?);
+    content.push_str(&state.handlebars.render("ttl", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?);
+    Ok((ContentType::new("text", "turtle"), content))
 }
 
 #[get("/rdf/<index>/<query>")]
@@ -211,6 +215,15 @@ fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
         state.handlebars.render("xml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
 }
 
+fn dump_ttl(file : &str) -> Result<(), String> {
+    let mut f = std::fs::File::create(file).map_err(|e| format!("Failed to open file: {}", e))?;
+    let state = STATE.get().expect("State not set");
+    let data = hbs::SynsetsHB::all(&state.wn);
+    state.handlebars.render_to_write("ttl-header", &data, &mut f).map_err(|e| format!("Failed to render template: {}", e))?;
+    state.handlebars.render_to_write("ttl", &data, &mut f).map_err(|e| format!("Failed to render template: {}", e))?;
+    Ok(())
+}
+
 
 
 #[launch]
@@ -218,6 +231,10 @@ fn rocket() -> _ {
     let config = Config::parse();
     match prepare_server(&config) {
         Ok(state) => {
+            if let Some(f) = &config.dump_ttl {
+                dump_ttl(f).expect("Failed to dump ttl");
+                std::process::exit(0);
+            }
             let mut rocket_config = RocketConfig::release_default();
             rocket_config.port = config.port;
             rocket_config.workers = 30;

@@ -29,7 +29,7 @@
         </LexicalEntry>
 {{/each}}
 {{#each synsets}}
-        <Synset id="pwn31-{{id}}" ili="{{ili}}" partOfSpeech="{{pos}}"
+        <Synset id="pwn31-{{id}}" ili="{{#if}}{{ili}}{{else}}in{{/if}}" partOfSpeech="{{pos}}"
                 dc:subject="{{subject}}">
             <Definition>{{definition}}</Definition>
 {{#each relations}}

@@ -1,10 +1,13 @@
 /// Handlebars templates
 ///
 
-use crate::wordnet::{Entry, Synset, SynsetId, ILIID, PartOfSpeech, Pronunciation};
+use crate::wordnet::{Entry, Synset, SynsetId, ILIID, PartOfSpeech, Pronunciation, Lexicon};
 use handlebars::{Handlebars, Helper, HelperResult, Output, RenderContext, Context};
 use std::collections::HashMap;
 use serde::{Serialize,Deserialize};
+
+const LICENSE : &'static str = "https://github.com/globalwordnet/english-wordnet/blob/master/LICENSE.md";
+const SITE_URL : &'static str = "https://en-word.net";
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct SynsetsHB {
@@ -16,13 +19,46 @@ pub struct SynsetsHB {
     site : &'static str
 }
 
+impl SynsetsHB {
+    pub fn all(lexicon : &Lexicon) -> SynsetsHB {
+        let mut synsets = Vec::new();
+        let lexicon_entries = lexicon.entries.iter()
+            .flat_map(|(_,v)| v.0.iter().map(|(k,v)| 
+                    (k.clone(), v.values().collect::<Vec<&Entry>>()))).collect();
+        let mut entries = HashMap::new();
+        for synset_grp in lexicon.synsets.values() {
+            for synset in synset_grp.0.values() {
+                let s2 = HBSynset::from(synset, &lexicon_entries);
+                for lemma in synset.members.iter() {
+                    entries.entry("en".to_string())
+                        .or_insert_with(|| HashMap::new())
+                        .entry(format!("{}-{}", lemma, synset.part_of_speech.str()))
+                        .or_insert_with(|| Vec::new())
+                        .push(s2.clone());
+                }
+                synsets.push(s2);
+            }
+        }
+        SynsetsHB {
+            synsets,
+            entries,
+            index: "id".to_string(),
+            name: "ignored".to_string(),
+            license: LICENSE,
+            site: SITE_URL
+        }
+
+    }
+}
+
+
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct HBSynset {
     pub definition : String,
     pub examples: Vec<String>,
     pub lemmas : Vec<Sense>,
     pub id : SynsetId,
-    pub ili : ILIID,
+    pub ili : Option<ILIID>,
     pub pos : PartOfSpeech,
     pub subject : String,
     pub relations : Vec<Relation>,
@@ -109,7 +145,7 @@ impl HBSynset {
             examples: synset.example.iter().map(|x| x.text.to_string()).collect(),
             lemmas,
             id: synset.id.clone().unwrap(),
-            ili: synset.ili.clone().unwrap(),
+            ili: synset.ili.clone(),
             pos: synset.part_of_speech.clone(),
             subject: synset.lexname.clone().unwrap_or("".to_string()),
             relations
@@ -165,15 +201,13 @@ pub fn make_synsets_hb(synset_data : Vec<&Synset>, entry_data : &HashMap<String,
             synsets.push(s2);
         }
     }
-    let license = "https://github.com/globalwordnet/english-wordnet/blob/master/LICENSE.md";
-    let site_url = "https://en-word.net";
     SynsetsHB {
         synsets,
         entries,
         index: index.to_string(),
         name: name.to_string(),
-        license,
-        site: site_url
+        license: LICENSE,
+        site: SITE_URL
     }
 }
 

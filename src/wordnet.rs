@@ -11,8 +11,8 @@ use indicatif::ProgressBar;
 
 /// The Lexicon contains the whole WordNet graph
 pub struct Lexicon {
-    entries : HashMap<String, Entries>,
-    synsets : HashMap<String, Synsets>,
+    pub entries : HashMap<String, Entries>,
+    pub synsets : HashMap<String, Synsets>,
     synsets_by_ili : HashMap<String, SynsetId>,
     synset_id_to_lexfile : HashMap<SynsetId, String>,
 }
@@ -340,7 +340,7 @@ fn entry_key(lemma : &str) -> String {
 pub struct PosKey(String);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Entries(BTreeMap<String, BTreeMap<PosKey, Entry>>);
+pub struct Entries(pub BTreeMap<String, BTreeMap<PosKey, Entry>>);
 
 impl Entries {
     fn entry_by_lemma(&self, lemma : &str) -> Vec<&Entry> {
@@ -468,7 +468,7 @@ pub struct Pronunciation {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Synsets(BTreeMap<SynsetId, Synset>);
+pub struct Synsets(pub BTreeMap<SynsetId, Synset>);
 
 
 #[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]

@@ -47,8 +47,8 @@
   </ontolex:LexicalSense>
 {{/each}}{{/each}}{{/each}}
 {{#each synsets}}
-  <ontolex:LexicalConcept rdf:about="&pwn;id/{{id}}">
-    <owl:sameAs rdf:resource="&ili;{{ili}}"/>
+  <ontolex:LexicalConcept rdf:about="&pwn;id/{{id}}">{{#if ili}}
+    <owl:sameAs rdf:resource="&ili;{{ili}}"/>{{/if}}
     <wn:partOfSpeech rdf:resource="&wn;{{long_pos pos}}"/>
     <dc:subject>{{subject}}</dc:subject>
     <wn:definition rdf:parseType="Resource">
