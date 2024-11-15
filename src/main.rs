@@ -2,9 +2,11 @@
 
 mod wordnet;
 mod hbs;
+mod negotiation;
 
 use clap::Parser;
 use handlebars::Handlebars;
+use negotiation::{ContentNegotiation, NegotiatedResponse, negotiated};
 use rocket::config::Config as RocketConfig;
 use rocket::fs::FileServer;
 use rocket::response::content::{RawHtml, RawJson};
@@ -56,18 +58,18 @@ fn index() -> RawHtml<&'static str> {
 }
 
 #[get("/lemma/<_id>")]
-fn get_lemma(_id: &str) -> RawHtml<&'static str> {
-    RawHtml(include_str!("../dist/index.html"))
+fn get_lemma(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
+    negotiated("lemma", _id, include_str!("../dist/index.html"), neg)
 }
 
 #[get("/id/<_id>")]
-fn get_id(_id: &str) -> RawHtml<&'static str> {
-    RawHtml(include_str!("../dist/index.html"))
+fn get_id(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
+    negotiated("id", _id, include_str!("../dist/index.html"), neg)
 }
 
 #[get("/ili/<_id>")]
-fn get_ili(_id: &str) -> RawHtml<&'static str> {
-    RawHtml(include_str!("../dist/index.html"))
+fn get_ili(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
+    negotiated("ili", _id, include_str!("../dist/index.html"), neg)
 }
 
 #[get("/downloads")]
