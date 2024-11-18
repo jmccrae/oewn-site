@@ -1,24 +1,18 @@
 <template>
   <v-app>
-      <v-app-bar app style="background-color:#bf0a30;" density="compact">
-          <v-toolbar-title>
-          </v-toolbar-title>
+      <!--<v-app-bar app style="background-color:#bf0a30;" density="compact">-->
+      <v-app-bar app color="grey-lighten-2" density="compact">
+          <v-app-bar-title class="justify-center">
+              <img src="./assets/english.svg" style="width: 40px;vertical-align:middle;"/>
+              <span class="en-title">Open English WordNet</span>
+          </v-app-bar-title>
           <v-spacer></v-spacer>
-          <v-btn text to="/" color="white">Search</v-btn>
-          <v-btn text to="/downloads" color="white">Downloads</v-btn>
+          <v-btn text to="/" color="#bf0a30">Search</v-btn>
+          <v-btn text to="/downloads" color="bfa030">Downloads</v-btn>
       </v-app-bar>
 
       <v-main>
           <v-container fill-height style="max-width: 1140px;">
-              <v-row>
-                  <v-col sm="2" cols="12" class="d-flex justify-center align-center">
-                      <img src="./assets/english.svg" style="width: 125px;"/>
-                  </v-col>
-                  <v-col sm="5" cols="12">
-                      <h1 class="en-title">Open English WordNet</h1>
-                  </v-col>
-                  <v-col></v-col>
-              </v-row>
               <RouterView/>
               <footer class="footer">
                   <div class="container">

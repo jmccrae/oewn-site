@@ -31,7 +31,11 @@ h1 {
 .en-title {
     line-height: 1.1em;
     padding-left: 20px;
-    font-size: 42pt;
+    font-size: 25pt;
+    font-family: 'Arvo', serif;
+    font-weight: 700;
+    color: #002868;
+    vertical-align: middle;
 }
 
 h3 {
