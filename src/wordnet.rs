@@ -11,10 +11,9 @@ use indicatif::ProgressBar;
 
 /// The Lexicon contains the whole WordNet graph
 pub struct Lexicon {
-    pub entries : HashMap<String, Entries>,
-    pub synsets : HashMap<String, Synsets>,
+    pub synsets : HashMap<SynsetId, MemberSynset>,
+    entries : HashMap<String, Vec<SynsetId>>,
     synsets_by_ili : HashMap<String, SynsetId>,
-    synset_id_to_lexfile : HashMap<SynsetId, String>,
 }
 
 impl Lexicon {
@@ -25,7 +24,6 @@ impl Lexicon {
             entries: HashMap::new(),
             synsets: HashMap::new(),
             synsets_by_ili: HashMap::new(),
-            synset_id_to_lexfile: HashMap::new(),
         }
     }
 
@@ -94,55 +92,31 @@ impl Lexicon {
             bar.inc(1);
         }
        bar.finish();
-       let mut lexicon = Lexicon { entries, synsets, synsets_by_ili, synset_id_to_lexfile };
-       lexicon.add_reverse_links();
-       Ok(lexicon)
+       add_reverse_links(&mut synsets, &entries, &synset_id_to_lexfile);
+       Ok(add_members(synsets, &mut entries))
     }
 
-    /// Get the lexicographer file name for a synset
-    pub fn lex_name_for(&self, synset_id : &SynsetId) -> Option<String> {
-        self.synset_id_to_lexfile.get(synset_id).map(|x| x.clone())
-    }
+    ///// Get the lexicographer file name for a synset
+    //pub fn lex_name_for(&self, synset_id : &SynsetId) -> Option<String> {
+    //    self.synset_id_to_lexfile.get(synset_id).map(|x| x.clone())
+    //}
 
     /// Get the entry data for a lemma
-    pub fn entry_by_lemma(&self, lemma : &str) -> Vec<&Entry> {
-        match self.entries.get(&entry_key(lemma)) {
-            Some(v) => v.entry_by_lemma(lemma),
-            None => Vec::new()
+    pub fn entry_by_lemma(&self, lemma : &str) -> Vec<SynsetId> {
+        if let Some(e) = self.entries.get(lemma) {
+            e.clone()
+        } else {
+            Vec::new()
         }
     }
 
     /// Get synset data by ID
-    pub fn synset_by_id(&self, synset_id : &SynsetId) -> Option<&Synset> {
-        match self.lex_name_for(synset_id) {
-            Some(lex_name) => {
-                match self.synsets.get(&lex_name) {
-                    Some(sss) => {
-                        sss.0.get(synset_id)
-                    },
-                    None => None
-                }
-            },
-            None => None
-        }
-    }
-
-    fn synset_by_id_mut(&mut self, synset_id : &SynsetId) -> Option<&mut Synset> {
-        match self.lex_name_for(synset_id) {
-            Some(lex_name) => {
-                match self.synsets.get_mut(&lex_name) {
-                    Some(sss) => {
-                        sss.0.get_mut(synset_id)
-                    },
-                    None => None
-                }
-            },
-            None => None
-        }
+    pub fn synset_by_id(&self, synset_id : &SynsetId) -> Option<&MemberSynset> {
+        self.synsets.get(synset_id)
     }
 
     /// Get synset by ILI
-    pub fn synset_by_ili(&self, ili : &str) -> Option<(&SynsetId, &Synset)> {
+    pub fn synset_by_ili(&self, ili : &str) -> Option<(&SynsetId, &MemberSynset)> {
         match self.synsets_by_ili.get(ili) {
             Some(ssid) => if let Some(synset) = self.synset_by_id(ssid) {
                 Some((ssid, synset))
@@ -156,134 +130,93 @@ impl Lexicon {
     /// Get the lemmas that start with a string
     pub fn lemma_by_prefix(&self, prefix: &str) -> Vec<String> {
         let prefix = prefix.to_lowercase();
-        match self.entries.get(&entry_key(&prefix)) {
-            Some(v) => v.lemma_by_prefix(&prefix),
-            None => Vec::new()
-        }
+        self.entries.iter().filter(|(k, _)| k.to_lowercase().starts_with(&prefix)).map(|(k, _)| k.clone()).collect()
     }
 
     /// Get the synsets that start with an ID
     pub fn ssid_by_prefix(&self, prefix: &str) -> Vec<String> {
-        let mut result = Vec::new();
-        for (key, _) in self.synset_id_to_lexfile.iter() {
-            let key = key.0.clone();
-            if key.starts_with(&prefix) {
-                result.push(key);
-            }
-        }
-        result
+        self.synsets.iter().filter(|(k, _)| k.0.starts_with(prefix)).map(|(k, _)| k.0.clone()).collect()
     }
 
     /// Get the ILIs that start with a string
     pub fn ili_by_prefix(&self, prefix: &str) -> Vec<String> {
-        let mut result = Vec::new();
-        for (key, _) in self.synsets_by_ili.iter() {
-            if key.starts_with(&prefix) {
-                result.push(key.clone());
-            }
-        }
-        result
+        self.synsets_by_ili.iter().filter(|(k, _)| k.starts_with(prefix)).map(|(k, _)| k.clone()).collect()
     }
 
-    /// Augment the lexicon with reverse and sense links
-    pub fn add_reverse_links(&mut self) {
-        macro_rules! add_reverse_links {
-            ($rel:ident, $inv:ident) => {
-                let mut elems = Vec::new();
-                for synsets in self.synsets.values() {
-                    for synset in synsets.0.values() {
-                        for hyp in synset.$rel.iter() {
-                            elems.push((synset.id.clone().unwrap(), hyp.clone()));
-                        }
-                    }
-                }
-                for (child, parent) in elems {
-                    if let Some(parent_synset) = self.synset_by_id_mut(&parent) {
-                        parent_synset.$inv.push(child.clone());
-                    }
-                }
+}
+
+fn synset_by_id_mut<'a>(synsets : &'a mut HashMap<String, Synsets>, synset_id : &SynsetId,
+    synset_id_to_lexfile : &HashMap<SynsetId, String>) -> Option<&'a mut Synset> {
+    match synset_id_to_lexfile.get(synset_id) {
+        Some(lex_name) => {
+            match synsets.get_mut(lex_name) {
+                Some(sss) => {
+                    sss.0.get_mut(synset_id)
+                },
+                None => None
             }
-        }
-
-        add_reverse_links!(hypernym, hyponym);
-        add_reverse_links!(instance_hypernym, instance_hyponym);
-        add_reverse_links!(mero_member, holo_member);
-        add_reverse_links!(mero_part, holo_part);
-        add_reverse_links!(mero_substance, holo_substance);
-        add_reverse_links!(causes, is_caused_by);
-        add_reverse_links!(exemplifies, is_exemplified_by);
-        add_reverse_links!(entails, is_entailed_by);
-
-        let mut sense_ids = HashMap::new();
-        for entries in self.entries.values() {
-            for (lemma, by_pos) in entries.0.iter() {
-                for entry in by_pos.values() {
-                    for sense in entry.sense.iter() {
-                        sense_ids.insert(sense.id.clone(), (lemma.clone(), sense.synset.clone()));
-                    }
-                }
-            }
-        }
+        },
+        None => None
+    }
+}
 
 
-        macro_rules! add_sense_links {
-            ($rel:ident, $inv:ident) => {
-                let mut elems = Vec::new();
-                for entries in self.entries.values() {
-                    for (lemma, by_pos) in entries.0.iter() {
-                        for entry in by_pos.values() {
-                            for sense in entry.sense.iter() {
-                                for target in sense.$rel.iter() {
-                                    if let Some((target_lemma, synset)) = sense_ids.get(target) {
-                                        elems.push((
-                                            sense.synset.clone(),
-                                            synset.clone(),
-                                            lemma.clone(),
-                                            target_lemma.clone(),
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for (source_synset, target_synset, source_lemma, target_lemma) in elems {
-                    if let Some(synset) = self.synset_by_id_mut(&source_synset) {
-                        synset.$rel.push(SenseRelation {
-                            target_synset: target_synset.clone(),
-                            source_lemma: source_lemma.clone(),
-                            target_lemma: target_lemma.clone()
-                        });
-                    }
-                    if let Some(synset) = self.synset_by_id_mut(&target_synset) {
-                        synset.$inv.push(SenseRelation {
-                            target_synset: source_synset,
-                            source_lemma: target_lemma,
-                            target_lemma: source_lemma
-                        });
-                    }
-                }
-            }
-        }
-        add_sense_links!(antonym, antonym);
-        add_sense_links!(participle, is_participle_of);
-        add_sense_links!(pertainym, is_pertainym_of);
-        add_sense_links!(derivation, derivation);
-        //add_sense_links!(exemplifies_sense, is_exemplified_by_sense);
-        {
+/// Augment the lexicon with reverse and sense links
+fn add_reverse_links(synsets : &mut HashMap<String, Synsets>, entries : &HashMap<String, Entries>,
+        synset_id_to_lexfile : &HashMap<SynsetId, String>) {
+    macro_rules! add_reverse_links {
+        ($rel:ident, $inv:ident) => {
             let mut elems = Vec::new();
-            for entries in self.entries.values() {
+            for synsets in synsets.values() {
+                for synset in synsets.0.values() {
+                    for hyp in synset.$rel.iter() {
+                        elems.push((synset.id.clone().unwrap(), hyp.clone()));
+                    }
+                }
+            }
+            for (child, parent) in elems {
+                if let Some(parent_synset) = synset_by_id_mut(synsets, &parent, synset_id_to_lexfile) {
+                    parent_synset.$inv.push(child.clone());
+                }
+            }
+        }
+    }
+
+    add_reverse_links!(hypernym, hyponym);
+    add_reverse_links!(instance_hypernym, instance_hyponym);
+    add_reverse_links!(mero_member, holo_member);
+    add_reverse_links!(mero_part, holo_part);
+    add_reverse_links!(mero_substance, holo_substance);
+    add_reverse_links!(causes, is_caused_by);
+    add_reverse_links!(exemplifies, is_exemplified_by);
+    add_reverse_links!(entails, is_entailed_by);
+
+    let mut sense_ids = HashMap::new();
+    for entries in entries.values() {
+        for (lemma, by_pos) in entries.0.iter() {
+            for entry in by_pos.values() {
+                for sense in entry.sense.iter() {
+                    sense_ids.insert(sense.id.clone(), (lemma.clone(), sense.synset.clone()));
+                }
+            }
+        }
+    }
+
+
+    macro_rules! add_sense_links {
+        ($rel:ident, $inv:ident) => {
+            let mut elems = Vec::new();
+            for entries in entries.values() {
                 for (lemma, by_pos) in entries.0.iter() {
                     for entry in by_pos.values() {
                         for sense in entry.sense.iter() {
-                            for target in sense.exemplifies.iter() {
+                            for target in sense.$rel.iter() {
                                 if let Some((target_lemma, synset)) = sense_ids.get(target) {
                                     elems.push((
-                                            sense.synset.clone(),
-                                            synset.clone(),
-                                            lemma.clone(),
-                                            target_lemma.clone(),
+                                        sense.synset.clone(),
+                                        synset.clone(),
+                                        lemma.clone(),
+                                        target_lemma.clone(),
                                     ));
                                 }
                             }
@@ -293,130 +226,197 @@ impl Lexicon {
             }
 
             for (source_synset, target_synset, source_lemma, target_lemma) in elems {
-                if let Some(synset) = self.synset_by_id_mut(&source_synset) {
-                    synset.exemplifies_sense.push(SenseRelation {
+                if let Some(synset) = synset_by_id_mut(synsets, &source_synset, synset_id_to_lexfile) {
+                    synset.$rel.push(SenseRelation {
                         target_synset: target_synset.clone(),
                         source_lemma: source_lemma.clone(),
                         target_lemma: target_lemma.clone()
                     });
                 }
-                if let Some(synset) = self.synset_by_id_mut(&target_synset) {
-                    synset.is_exemplified_by_sense.push(SenseRelation {
+                if let Some(synset) = synset_by_id_mut(synsets, &target_synset, synset_id_to_lexfile) {
+                    synset.$inv.push(SenseRelation {
                         target_synset: source_synset,
                         source_lemma: target_lemma,
                         target_lemma: source_lemma
                     });
                 }
             }
-        } 
-        add_sense_links!(agent, is_agent_of);
-        add_sense_links!(material, is_material_of);
-        add_sense_links!(event, is_event_of);
-        add_sense_links!(instrument, is_instrument_of);
-        add_sense_links!(location, is_location_of);
-        add_sense_links!(by_means_of, is_by_means_of);
-        add_sense_links!(undergoer, is_undergoer_of);
-        add_sense_links!(property, is_property_of);
-        add_sense_links!(result, is_result_of);
-        add_sense_links!(state, is_state_of);
-        add_sense_links!(uses, is_used_by);
-        add_sense_links!(destination, is_destination_of);
-        add_sense_links!(body_part, is_body_part_of);
-        add_sense_links!(vehicle, is_vehicle_of);
+        }
     }
-
-    pub fn synset_with_members(&self, synset : &Synset) -> MemberSynset {
-        let mut members = Vec::new();
-        for m in synset.members.iter() {
-            if let Some(entry) = self.entry_by_lemma(&m).first() {
-                for sense in entry.sense.iter() {
-                    if Some(&sense.synset) != synset.id.as_ref() {
-                        continue;
+    add_sense_links!(antonym, antonym);
+    add_sense_links!(participle, is_participle_of);
+    add_sense_links!(pertainym, is_pertainym_of);
+    add_sense_links!(derivation, derivation);
+    //add_sense_links!(exemplifies_sense, is_exemplified_by_sense);
+    {
+        let mut elems = Vec::new();
+        for entries in entries.values() {
+            for (lemma, by_pos) in entries.0.iter() {
+                for entry in by_pos.values() {
+                    for sense in entry.sense.iter() {
+                        for target in sense.exemplifies.iter() {
+                            if let Some((target_lemma, synset)) = sense_ids.get(target) {
+                                elems.push((
+                                        sense.synset.clone(),
+                                        synset.clone(),
+                                        lemma.clone(),
+                                        target_lemma.clone(),
+                                ));
+                            }
+                        }
                     }
-                    members.push(Member {
-                        lemma: m.clone(),
-                        sense: MemberSense {
-                            id: sense.id.clone(),
-                            subcat: sense.subcat.clone()
-                        },
-                        form: entry.form.clone(),
-                        pronunciation: entry.pronunciation.clone(),
-                        poskey: entry.poskey.clone(),
-                        entry_no: entry.poskey.as_ref().and_then(|x| x.entry_no())
-                    });
                 }
             }
         }
-        MemberSynset {
-            members,
-            id: synset.id.clone(),
-            lexname: synset.lexname.clone(),
-            definition: synset.definition.clone(),
-            example: synset.example.clone(),
-            ili: synset.ili.clone(),
-            wikidata: synset.wikidata.clone(),
-            source: synset.source.clone(),
-            part_of_speech: synset.part_of_speech.clone(),
-            also: synset.also.clone(),
-            attribute: synset.attribute.clone(),
-            causes: synset.causes.clone(),
-            domain_region: synset.domain_region.clone(),
-            domain_topic: synset.domain_topic.clone(),
-            exemplifies: synset.exemplifies.clone(),
-            entails: synset.entails.clone(),
-            hypernym: synset.hypernym.clone(),
-            instance_hypernym: synset.instance_hypernym.clone(),
-            mero_member: synset.mero_member.clone(),
-            mero_part: synset.mero_part.clone(),
-            mero_substance: synset.mero_substance.clone(),
-            similar: synset.similar.clone(),
-            hyponym: synset.hyponym.clone(),
-            is_caused_by: synset.is_caused_by.clone(),
-            has_domain_region: synset.has_domain_region.clone(),
-            has_domain_topic: synset.has_domain_topic.clone(),
-            is_exemplified_by: synset.is_exemplified_by.clone(),
-            is_entailed_by: synset.is_entailed_by.clone(),
-            instance_hyponym: synset.instance_hyponym.clone(),
-            holo_member: synset.holo_member.clone(),
-            holo_part: synset.holo_part.clone(),
-            holo_substance: synset.holo_substance.clone(),
-            antonym: synset.antonym.clone(),
-            participle: synset.participle.clone(),
-            is_participle_of: synset.is_participle_of.clone(),
-            pertainym: synset.pertainym.clone(),
-            is_pertainym_of: synset.is_pertainym_of.clone(),
-            derivation: synset.derivation.clone(),
-            exemplifies_sense: synset.exemplifies_sense.clone(),
-            is_exemplified_by_sense: synset.is_exemplified_by_sense.clone(),
-            agent: synset.agent.clone(),
-            is_agent_of: synset.is_agent_of.clone(),
-            material: synset.material.clone(),
-            is_material_of: synset.is_material_of.clone(),
-            event: synset.event.clone(),
-            is_event_of: synset.is_event_of.clone(),
-            instrument: synset.instrument.clone(),
-            is_instrument_of: synset.is_instrument_of.clone(),
-            location: synset.location.clone(),
-            is_location_of: synset.is_location_of.clone(),
-            by_means_of: synset.by_means_of.clone(),
-            is_by_means_of: synset.is_by_means_of.clone(),
-            undergoer: synset.undergoer.clone(),
-            is_undergoer_of: synset.is_undergoer_of.clone(),
-            property: synset.property.clone(),
-            is_property_of: synset.is_property_of.clone(),
-            result: synset.result.clone(),
-            is_result_of: synset.is_result_of.clone(),
-            state: synset.state.clone(),
-            is_state_of: synset.is_state_of.clone(),
-            uses: synset.uses.clone(),
-            is_used_by: synset.is_used_by.clone(),
-            destination: synset.destination.clone(),
-            is_destination_of: synset.is_destination_of.clone(),
-            body_part: synset.body_part.clone(),
-            is_body_part_of: synset.is_body_part_of.clone(),
-            vehicle: synset.vehicle.clone(),
-            is_vehicle_of: synset.is_vehicle_of.clone(),
+
+        for (source_synset, target_synset, source_lemma, target_lemma) in elems {
+            if let Some(synset) = synset_by_id_mut(synsets, &source_synset, synset_id_to_lexfile) {
+                synset.exemplifies_sense.push(SenseRelation {
+                    target_synset: target_synset.clone(),
+                    source_lemma: source_lemma.clone(),
+                    target_lemma: target_lemma.clone()
+                });
+            }
+            if let Some(synset) = synset_by_id_mut(synsets, &target_synset, synset_id_to_lexfile) {
+                synset.is_exemplified_by_sense.push(SenseRelation {
+                    target_synset: source_synset,
+                    source_lemma: target_lemma,
+                    target_lemma: source_lemma
+                });
+            }
         }
+    } 
+    add_sense_links!(agent, is_agent_of);
+    add_sense_links!(material, is_material_of);
+    add_sense_links!(event, is_event_of);
+    add_sense_links!(instrument, is_instrument_of);
+    add_sense_links!(location, is_location_of);
+    add_sense_links!(by_means_of, is_by_means_of);
+    add_sense_links!(undergoer, is_undergoer_of);
+    add_sense_links!(property, is_property_of);
+    add_sense_links!(result, is_result_of);
+    add_sense_links!(state, is_state_of);
+    add_sense_links!(uses, is_used_by);
+    add_sense_links!(destination, is_destination_of);
+    add_sense_links!(body_part, is_body_part_of);
+    add_sense_links!(vehicle, is_vehicle_of);
+}
+
+pub fn add_members(synsets : HashMap<String, Synsets>, entries : &HashMap<String, Entries>) -> Lexicon {
+    let mut synset_members = HashMap::new();
+    let mut entry_map = HashMap::new();
+    let mut ili = HashMap::new();
+    for (_, synsets) in synsets {
+        for (_, synset) in synsets.0 {
+            let id = synset.id.clone().unwrap();
+            for member in synset.members.iter() {
+                entry_map.entry(member.clone()).or_insert_with(Vec::new).push(id.clone());
+            }
+            if let Some(ili_id) = synset.ili.as_ref() {
+                ili.insert(ili_id.0.clone(), id.clone());
+            }
+            let m = synset_with_members(synset, entries);
+            synset_members.insert(id, m);
+        }
+    }
+    Lexicon {
+        synsets: synset_members,
+        entries: entry_map,
+        synsets_by_ili: ili
+    }
+}
+
+pub fn synset_with_members(synset : Synset, entries : &HashMap<String, Entries>) -> MemberSynset {
+    let mut members = Vec::new();
+    for m in synset.members.iter() {
+        for entry in entries[&entry_key(m)].entry_by_lemma(m) {
+            for sense in entry.sense.iter() {
+                if Some(&sense.synset) != synset.id.as_ref() {
+                    continue;
+                }
+                members.push(Member {
+                    lemma: m.clone(),
+                    sense: MemberSense {
+                        id: sense.id.clone(),
+                        subcat: sense.subcat.clone()
+                    },
+                    form: entry.form.clone(),
+                    pronunciation: entry.pronunciation.clone(),
+                    poskey: entry.poskey.clone(),
+                    entry_no: entry.poskey.as_ref().and_then(|x| x.entry_no())
+                });
+            }
+        }
+    }
+    MemberSynset {
+        members,
+        id: synset.id.unwrap(),
+        lexname: synset.lexname.unwrap(),
+        definition: synset.definition,
+        example: synset.example,
+        ili: synset.ili,
+        wikidata: synset.wikidata,
+        source: synset.source,
+        part_of_speech: synset.part_of_speech,
+        also: synset.also,
+        attribute: synset.attribute,
+        causes: synset.causes,
+        domain_region: synset.domain_region,
+        domain_topic: synset.domain_topic,
+        exemplifies: synset.exemplifies,
+        entails: synset.entails,
+        hypernym: synset.hypernym,
+        instance_hypernym: synset.instance_hypernym,
+        mero_member: synset.mero_member,
+        mero_part: synset.mero_part,
+        mero_substance: synset.mero_substance,
+        similar: synset.similar,
+        hyponym: synset.hyponym,
+        is_caused_by: synset.is_caused_by,
+        has_domain_region: synset.has_domain_region,
+        has_domain_topic: synset.has_domain_topic,
+        is_exemplified_by: synset.is_exemplified_by,
+        is_entailed_by: synset.is_entailed_by,
+        instance_hyponym: synset.instance_hyponym,
+        holo_member: synset.holo_member,
+        holo_part: synset.holo_part,
+        holo_substance: synset.holo_substance,
+        antonym: synset.antonym,
+        participle: synset.participle,
+        is_participle_of: synset.is_participle_of,
+        pertainym: synset.pertainym,
+        is_pertainym_of: synset.is_pertainym_of,
+        derivation: synset.derivation,
+        exemplifies_sense: synset.exemplifies_sense,
+        is_exemplified_by_sense: synset.is_exemplified_by_sense,
+        agent: synset.agent,
+        is_agent_of: synset.is_agent_of,
+        material: synset.material,
+        is_material_of: synset.is_material_of,
+        event: synset.event,
+        is_event_of: synset.is_event_of,
+        instrument: synset.instrument,
+        is_instrument_of: synset.is_instrument_of,
+        location: synset.location,
+        is_location_of: synset.is_location_of,
+        by_means_of: synset.by_means_of,
+        is_by_means_of: synset.is_by_means_of,
+        undergoer: synset.undergoer,
+        is_undergoer_of: synset.is_undergoer_of,
+        property: synset.property,
+        is_property_of: synset.is_property_of,
+        result: synset.result,
+        is_result_of: synset.is_result_of,
+        state: synset.state,
+        is_state_of: synset.is_state_of,
+        uses: synset.uses,
+        is_used_by: synset.is_used_by,
+        destination: synset.destination,
+        is_destination_of: synset.is_destination_of,
+        body_part: synset.body_part,
+        is_body_part_of: synset.is_body_part_of,
+        vehicle: synset.vehicle,
+        is_vehicle_of: synset.is_vehicle_of,
     }
 }
 
@@ -449,10 +449,6 @@ pub struct Entries(pub BTreeMap<String, BTreeMap<PosKey, Entry>>);
 impl Entries {
     fn entry_by_lemma(&self, lemma : &str) -> Vec<&Entry> {
         self.0.get(lemma).iter().flat_map(|x| x.values()).collect()
-    }
-
-    fn lemma_by_prefix(&self, prefix: &str) -> Vec<String> {
-        self.0.iter().filter(|(k, _)| k.to_lowercase().starts_with(prefix)).map(|(k, _)| k.clone()).collect()
     }
 }
 
@@ -780,11 +776,9 @@ pub struct Synset {
 #[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
 pub struct MemberSynset {
     // not found in serialized data
-    #[serde(default)]
-    pub id : Option<SynsetId>,
+    pub id : SynsetId,
     // not found in serialized data
-    #[serde(default)]
-    pub lexname: Option<String>,
+    pub lexname: String,
     pub definition : Vec<String>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]

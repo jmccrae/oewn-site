@@ -13,7 +13,7 @@ use rocket::response::content::{RawHtml, RawJson};
 use rocket::response::Redirect;
 use rocket::http::ContentType;
 use once_cell::sync::OnceCell;
-use wordnet::{Lexicon, SynsetId, Synset, Entry};
+use wordnet::{Lexicon, SynsetId, MemberSynset};
 use std::collections::HashMap;
 use serde::Serialize;
 
@@ -79,7 +79,6 @@ fn get_id(id: &str, neg: ContentNegotiation) -> Option<NegotiatedResponse> {
         match negotiated("id", id, include_str!("../dist/index.html"), neg) {
             NegotiatedResponse::Html(RawHtml(content)) => {
                 let content = String::from(content);
-                let synset = state.wn.synset_with_members(&synset);
                 let index_content = state.handlebars.render("html", &synset).expect("Failed to render template");
 
                 let content = content.replace("<div id=\"app\"></div>",
@@ -127,8 +126,7 @@ struct SiteMapData {
 #[get("/sitemap.xml")]
 fn sitemap() -> (ContentType, String) {
     let state = STATE.get().expect("State not set");
-    let synsets = state.wn.synsets.values().flat_map(
-        |ss| ss.0.keys().map(|x| x.clone())).collect();
+    let synsets = state.wn.synsets.keys().map(|x| x.clone()).collect();
     let data = SiteMapData { synsets };
     (ContentType::new("application", "xml"),
         state.handlebars.render("sitemap", &data).expect("Failed to render template"))
@@ -158,8 +156,7 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
 
 #[derive(Serialize)]
 struct JsonResponse<'a> {
-    synsets: Vec<&'a Synset>,
-    entries: HashMap<String, Vec<&'a Entry>>,
+    synsets: Vec<&'a MemberSynset>,
     target_labels: HashMap<String, String>,
 }
 
@@ -167,7 +164,6 @@ impl<'a> JsonResponse<'a> {
     fn new() -> Self {
         JsonResponse {
             synsets: Vec::new(),
-            entries: HashMap::new(),
             target_labels: HashMap::new()
         }
     }
@@ -178,7 +174,7 @@ impl<'a> JsonResponse<'a> {
                 if let Some(target_synset) = lexicon.synset_by_id(target) {
                     self.target_labels.insert(target.to_string(), 
                         target_synset.members.iter().next()
-                        .map(|x| x.to_string()).unwrap_or("".to_string()));
+                        .map(|x| x.lemma.to_string()).unwrap_or("".to_string()));
                 }
             }
         }
@@ -191,40 +187,19 @@ fn resolve_query<'a>(state: &'a State, index : &str, id : &str) -> Result<JsonRe
         let ssid = SynsetId::new(id);
         if let Some(synset) = state.wn.synset_by_id(&ssid) {
             response.synsets.push(synset);
-            for member in synset.members.iter() {
-                for entry in state.wn.entry_by_lemma(&member) {
-                    response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
-                }
-            }
         }
     } else if index == "lemma" {
         let entries = state.wn.entry_by_lemma(id);
-        for entry in entries.iter() {
-            for sense in entry.sense.iter() {
-                if let Some(synset) = state.wn.synset_by_id(&sense.synset) {
-                    response.synsets.push(synset);
-                    for member in synset.members.iter() {
-                        if response.entries.contains_key(member) {
-                            continue;
-                        }
-                        for entry in state.wn.entry_by_lemma(&member) {
-                            response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
-                        }
-                    }
-                } else {
-                    return Err(format!("Failed to find synset {:?}", sense.synset));
-                }
+        for synset in entries.iter() {
+            if let Some(synset) = state.wn.synset_by_id(&synset) {
+                response.synsets.push(synset);
+            } else {
+                return Err(format!("Failed to find synset {:?}", synset));
             }
         }
-        response.entries.insert(id.to_string(), entries);
     } else if index == "ili" {
         if let Some((_, synset)) = state.wn.synset_by_ili(id) {
             response.synsets.push(synset);
-            for member in synset.members.iter() {
-                for entry in state.wn.entry_by_lemma(&member) {
-                    response.entries.entry(member.to_string()).or_insert_with(|| Vec::new()).push(entry);
-                }
-            }
         }
     } else {
         return Err("Invalid index".to_string())
@@ -244,7 +219,7 @@ fn json(index: &str, id: &str) -> Result<RawJson<String>, String> {
 fn turtle(index : &str, query : &str) -> Result<(ContentType, String) , String> {
     let state = STATE.get().expect("State not set");
     let response = resolve_query(&state, index, query)?;
-    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    let hb_data = hbs::make_synsets_hb(response.synsets, index, query);
     let mut content = String::new();
     content.push_str(&state.handlebars.render("ttl-header", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?);
     content.push_str(&state.handlebars.render("ttl", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?);
@@ -255,7 +230,7 @@ fn turtle(index : &str, query : &str) -> Result<(ContentType, String) , String> 
 fn rdfxml(index : &str, query : &str) -> Result<(ContentType, String) , String> {
     let state = STATE.get().expect("State not set");
     let response = resolve_query(&state, index, query)?;
-    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    let hb_data = hbs::make_synsets_hb(response.synsets, index, query);
     Ok((ContentType::new("application", "rdf+xml"),
         state.handlebars.render("rdfxml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
 }
@@ -264,7 +239,7 @@ fn rdfxml(index : &str, query : &str) -> Result<(ContentType, String) , String> 
 fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
     let state = STATE.get().expect("State not set");
     let response = resolve_query(&state, index, query)?;
-    let hb_data = hbs::make_synsets_hb(response.synsets, &response.entries, index, query);
+    let hb_data = hbs::make_synsets_hb(response.synsets, index, query);
     Ok((ContentType::new("application", "xml"),
         state.handlebars.render("xml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
 }
@@ -273,7 +248,6 @@ fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
 fn html_synset(ssid : &str) -> Result<RawHtml<String>, String> {
     let state = STATE.get().expect("State not set");
     if let Some(synset) = state.wn.synset_by_id(&SynsetId::new(ssid)) {
-        let synset = state.wn.synset_with_members(&synset);
         let content = state.handlebars.render("html", &synset).map_err(|e| format!("Failed to render template: {}", e))?;
         Ok(RawHtml(content))
     } else {

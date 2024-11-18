@@ -1,7 +1,7 @@
 /// Handlebars templates
 ///
 
-use crate::wordnet::{Entry, Synset, SynsetId, ILIID, PartOfSpeech, Pronunciation, Lexicon};
+use crate::wordnet::{SynsetId, ILIID, PartOfSpeech, Pronunciation, Lexicon, MemberSynset, Member};
 use handlebars::{Handlebars, Helper, HelperResult, Output, RenderContext, Context};
 use std::collections::HashMap;
 use serde::{Serialize,Deserialize};
@@ -22,22 +22,17 @@ pub struct SynsetsHB {
 impl SynsetsHB {
     pub fn all(lexicon : &Lexicon) -> SynsetsHB {
         let mut synsets = Vec::new();
-        let lexicon_entries = lexicon.entries.iter()
-            .flat_map(|(_,v)| v.0.iter().map(|(k,v)| 
-                    (k.clone(), v.values().collect::<Vec<&Entry>>()))).collect();
         let mut entries = HashMap::new();
-        for synset_grp in lexicon.synsets.values() {
-            for synset in synset_grp.0.values() {
-                let s2 = HBSynset::from(synset, &lexicon_entries);
-                for lemma in synset.members.iter() {
-                    entries.entry("en".to_string())
-                        .or_insert_with(|| HashMap::new())
-                        .entry(format!("{}-{}", lemma, synset.part_of_speech.str()))
-                        .or_insert_with(|| Vec::new())
-                        .push(s2.clone());
-                }
-                synsets.push(s2);
+        for synset in lexicon.synsets.values() {
+            let s2 = HBSynset::from(&synset);
+            for lemma in synset.members.iter() {
+                entries.entry("en".to_string())
+                    .or_insert_with(|| HashMap::new())
+                    .entry(format!("{}-{}", lemma.lemma, synset.part_of_speech.str()))
+                    .or_insert_with(|| Vec::new())
+                    .push(s2.clone());
             }
+            synsets.push(s2);
         }
         SynsetsHB {
             synsets,
@@ -65,19 +60,10 @@ pub struct HBSynset {
 }
 
 impl HBSynset {
-    pub fn from(synset : &Synset, entries: &HashMap<String, Vec<&Entry>>) -> HBSynset { 
+    pub fn from(synset : &MemberSynset) -> HBSynset { 
         let mut lemmas = Vec::new();
         for member in synset.members.iter() {
-            if let Some(entries) = entries.get(member) {
-                for entry in entries.iter() {
-                    for (idx, sense) in entry.sense.iter().enumerate() {
-                        if Some(&sense.synset) != synset.id.as_ref() {
-                            continue;
-                        }
-                        lemmas.push(Sense::from(member, entry, idx));
-                    }
-                }
-            }
+            lemmas.push(Sense::from(member));
         }
         let mut relations = Vec::new();
         macro_rules! add_rel {
@@ -144,10 +130,10 @@ impl HBSynset {
             definition: synset.definition.iter().next().map(|x| x.to_string()).unwrap_or("".to_string()),
             examples: synset.example.iter().map(|x| x.text.to_string()).collect(),
             lemmas,
-            id: synset.id.clone().unwrap(),
+            id: synset.id.clone(),
             ili: synset.ili.clone(),
             pos: synset.part_of_speech.clone(),
-            subject: synset.lexname.clone().unwrap_or("".to_string()),
+            subject: synset.lexname.clone(),
             relations
         }
     }
@@ -165,14 +151,14 @@ pub struct Sense {
 }
 
 impl Sense {
-    pub fn from(member : &str, entry: &Entry, idx: usize) -> Sense {
+    pub fn from(entry: &Member) -> Sense {
 
         Sense {
-            lemma: member.to_string(),
+            lemma: entry.lemma.clone(),
             language: "en".to_string(),
             forms: entry.form.clone(),
-            sense_key: Some(entry.sense[idx].id.to_string()),
-            subcats: entry.sense[idx].subcat.clone(),
+            sense_key: Some(entry.sense.id.to_string()),
+            subcats: entry.sense.subcat.clone(),
             pronunciations: entry.pronunciation.clone(),
         }
     }
@@ -186,16 +172,16 @@ pub struct Relation {
     pub target : String
 }
 
-pub fn make_synsets_hb(synset_data : Vec<&Synset>, entry_data : &HashMap<String, Vec<&Entry>>,
+pub fn make_synsets_hb(synset_data : Vec<&MemberSynset>, 
                     index : &str, name : &str) -> SynsetsHB {
     let mut entries = HashMap::new();
     let mut synsets = Vec::new();
     for synset in synset_data.iter() {
         for lemma in synset.members.iter() {
-            let s2 = HBSynset::from(synset, &entry_data);
+            let s2 = HBSynset::from(synset);
             entries.entry("en".to_string())
                 .or_insert_with(|| HashMap::new())
-                .entry(format!("{}-{}", lemma, synset.part_of_speech.str()))
+                .entry(format!("{}-{}", lemma.lemma, synset.part_of_speech.str()))
                 .or_insert_with(|| Vec::new())
                 .push(s2.clone());
             synsets.push(s2);

@@ -76,7 +76,6 @@
                 }
             },
             replaceSubcat(subcat, members) {
-                console.log(subcat);
                 subcat = framemap[subcat];
                 let mapped_lemmas = [];
                 if(subcat.includes('----s')) {
@@ -88,7 +87,6 @@
                             mapped_lemmas.push(this.thirdPersonForm(member));
                         }
                     }
-                    console.log(subcat);
                     return subcat.replace('----s', mapped_lemmas.join('/'));
                 } else if(subcat.includes('----ing')) {
                     for(const member of members) {
@@ -112,7 +110,7 @@
 </script>
 
 <template>
-    <div class="subcats">
+    <div class="subcats" v-if="Object.keys(subcats).length > 0">
         <b>Subcategorization frames:</b>
         <ul>
             <li v-for="(members, subcat) in subcats" :key="subcat">{{ replaceSubcat(subcat, members) }}</li>

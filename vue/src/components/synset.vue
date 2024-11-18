@@ -72,58 +72,14 @@
             }
         },
         methods: {
-            entryNo(member) {
-                for(const entry of this.entries[member]) {
-                    // Any sense of this synset == this.synset.id
-                    for(const sense of entry.sense) {
-                        if(sense.synset == this.synset.id) {
-                            // Return 0 if entry.poskey is a single letter else return the 3rd character
-                            return entry.poskey.length == 1 ? 0 : Number(entry.poskey[2]);
-                        }
-                    }
-                }
-                return 0;
-            },
-            pronunciation(member) {
-                for (const entry of this.entries[member]) {
-                    for (const sense of entry.sense) {
-                        if (sense.synset == this.synset.id) {
-                            if(entry.pronunciation) {
-                                return entry.pronunciation;
-                            } else {
-                                return [];
-                            }
-                        }
-                    }
-                }
-                return [];
-            },
-            sensekey(member) {
-                for (const entry of this.entries[member]) {
-                    for (const sense of entry.sense) {
-                        if (sense.synset == this.synset.id) {
-                            return sense.id;
-                        }
-                    }
-                }
-                return "";
-            },
             subcats() {
                 let subcats = {};
-                for (const [member, entries] of Object.entries(this.entries)) {
-                    for (const entry of entries) {
-                        for (const sense of entry.sense) {
-                            if (sense.synset == this.synset.id) {
-                                if (sense.subcat) {
-                                    for (const subcat of sense.subcat) {
-                                        if (!subcats[subcat]) {
-                                            subcats[subcat] = [];
-                                        }
-                                        subcats[subcat].push(member);
-                                    }
-                                }
-                            }
+                for (const member of this.synset.members) {
+                    for (const subcat of member.sense.subcat) {
+                        if (!subcats[subcat]) {
+                            subcats[subcat] = [];
                         }
+                        subcats[subcat].push(member.lemma);
                     }
                 }
                 return subcats;
@@ -341,14 +297,14 @@
         <div class="lemmas">
             <span class="pos">({{synset.partOfSpeech}}) </span>
             <span class="lemma" v-for="(member, index) in synset.members">
-                <a target="_self" v-bind:href="'/lemma/' + member" :class="{ underline: member === focus }">{{ member }}</a>
-                <span v-if="entryNo(member) > 0"><sup>{{ entryNo(member) }}</sup></span>
-                <span v-if="display.sensekeys" class="sense_key"> {{ sensekey(member) }}</span>
-                <span v-if="display.pronunciation && pronunciation(member).length > 0" class="pronunciation">
+                <a target="_self" v-bind:href="'/lemma/' + member.lemma" :class="{ underline: member.lemma === focus }">{{ member.lemma }}</a>
+                <span v-if="'entry_no' in member"><sup>{{ member.entry_no }}</sup></span>
+                <span v-if="display.sensekeys" class="sense_key"> {{ member.sense.id }}</span>
+                <span v-if="display.pronunciation && 'pronunciation' in member" class="pronunciation">
                     (Pronunciation:
-                    <span v-for="(pron, index) in pronunciation(member)">
+                    <span v-for="(pron, index) in member.pronunciation">
                         <span v-if="pron.variety" class="pronunciation_variety">({{pron.variety}})</span>
-                        {{pron.value}}{{index == pronunciation(member).length - 1 ? '' : ', '}}
+                        {{pron.value}}{{index == member.pronunciation.length - 1 ? '' : ', '}}
                     </span>)&nbsp;
                 </span>
                 <span v-if="index != synset.members.length - 1">, </span>
