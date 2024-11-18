@@ -1,8 +1,8 @@
 #[macro_use] extern crate rocket;
 
-mod wordnet;
 mod hbs;
 mod negotiation;
+mod wordnet;
 
 use clap::Parser;
 use handlebars::Handlebars;
@@ -10,6 +10,7 @@ use negotiation::{ContentNegotiation, NegotiatedResponse, negotiated};
 use rocket::config::Config as RocketConfig;
 use rocket::fs::FileServer;
 use rocket::response::content::{RawHtml, RawJson};
+use rocket::response::Redirect;
 use rocket::http::ContentType;
 use once_cell::sync::OnceCell;
 use wordnet::{Lexicon, SynsetId, Synset, Entry};
@@ -45,6 +46,7 @@ fn prepare_server(config : &Config) -> Result<(), String> {
     handlebars.register_template_string("ttl", include_str!("hbs/ttl.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("ttl-header", include_str!("hbs/ttl-header.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("html", include_str!("hbs/html.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
+    handlebars.register_template_string("sitemap", include_str!("hbs/sitemap.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_helper("lemma_escape", Box::new(hbs::lemma_escape));
     handlebars.register_helper("long_pos", Box::new(hbs::long_pos));
 
@@ -54,23 +56,52 @@ fn prepare_server(config : &Config) -> Result<(), String> {
 }
 
 #[get("/")]
-fn index() -> RawHtml<&'static str> {
+fn index_page() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
-#[get("/lemma/<_id>")]
-fn get_lemma(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
-    negotiated("lemma", _id, include_str!("../dist/index.html"), neg)
+#[get("/lemma/<lemma>")]
+fn get_lemma(lemma: &str, neg: ContentNegotiation) -> Option<NegotiatedResponse> {
+    let state = STATE.get().expect("State not set");
+    if let Some(_) = state.wn.entry_by_lemma(lemma).iter().next() {
+        Some(negotiated("lemma", lemma, include_str!("../dist/index.html"), neg))
+    } else {
+        None
+    }
 }
 
-#[get("/id/<_id>")]
-fn get_id(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
-    negotiated("id", _id, include_str!("../dist/index.html"), neg)
+#[get("/id/<id>")]
+fn get_id(id: &str, neg: ContentNegotiation) -> Option<NegotiatedResponse> {
+    let state = STATE.get().expect("State not set");
+    if id.starts_with("oewn") {
+        return Some(NegotiatedResponse::Redirect(Redirect::to(format!("/id/{}", &id[5..]))));
+    } else if let Some(synset) = state.wn.synset_by_id(&SynsetId::new(id)) {
+        match negotiated("id", id, include_str!("../dist/index.html"), neg) {
+            NegotiatedResponse::Html(RawHtml(content)) => {
+                let content = String::from(content);
+                let synset = state.wn.synset_with_members(&synset);
+                let index_content = state.handlebars.render("html", &synset).expect("Failed to render template");
+
+                let content = content.replace("<div id=\"app\"></div>",
+                    &("<div id=\"app\">".to_string() + &index_content+ "</div>"));
+                Some(NegotiatedResponse::HtmlDyn(RawHtml(content)))
+
+            },
+            x => Some(x)
+        }
+    } else {
+        None
+    }
 }
 
-#[get("/ili/<_id>")]
-fn get_ili(_id: &str, neg: ContentNegotiation) -> NegotiatedResponse {
-    negotiated("ili", _id, include_str!("../dist/index.html"), neg)
+#[get("/ili/<id>")]
+fn get_ili(id: &str, neg: ContentNegotiation) -> Option<NegotiatedResponse> {
+    let state = STATE.get().expect("State not set");
+    if let Some(_) = state.wn.synset_by_ili(id) {
+        Some(negotiated("ili", id, include_str!("../dist/index.html"), neg))
+    } else {
+        None
+    }
 }
 
 #[get("/downloads")]
@@ -81,6 +112,26 @@ fn downloads() -> RawHtml<&'static str> {
 #[get("/favicon.ico")]
 fn favicon() -> (ContentType, &'static [u8]) {
     (ContentType::Icon, include_bytes!("favicon.ico"))
+}
+
+#[get("/robots.txt")]
+fn robots() -> (ContentType, &'static [u8]) {
+    (ContentType::Plain, include_bytes!("robots.txt"))
+}
+
+#[derive(Serialize)]
+struct SiteMapData {
+    synsets : Vec<SynsetId>,
+}
+
+#[get("/sitemap.xml")]
+fn sitemap() -> (ContentType, String) {
+    let state = STATE.get().expect("State not set");
+    let synsets = state.wn.synsets.values().flat_map(
+        |ss| ss.0.keys().map(|x| x.clone())).collect();
+    let data = SiteMapData { synsets };
+    (ContentType::new("application", "xml"),
+        state.handlebars.render("sitemap", &data).expect("Failed to render template"))
 }
 
 #[get("/autocomplete/<index>/<query>")]
@@ -218,7 +269,7 @@ fn xml(index : &str, query: &str) -> Result<(ContentType, String) , String> {
         state.handlebars.render("xml", &hb_data).map_err(|e| format!("Failed to render template: {}", e))?))
 }
 
-#[get("/index/<ssid>")]
+#[get("/html_index/<ssid>")]
 fn html_synset(ssid : &str) -> Result<RawHtml<String>, String> {
     let state = STATE.get().expect("State not set");
     if let Some(synset) = state.wn.synset_by_id(&SynsetId::new(ssid)) {
@@ -230,7 +281,6 @@ fn html_synset(ssid : &str) -> Result<RawHtml<String>, String> {
     }
 }
 
-
 fn dump_ttl(file : &str) -> Result<(), String> {
     let mut f = std::fs::File::create(file).map_err(|e| format!("Failed to open file: {}", e))?;
     let state = STATE.get().expect("State not set");
@@ -239,8 +289,6 @@ fn dump_ttl(file : &str) -> Result<(), String> {
     state.handlebars.render_to_write("ttl", &data, &mut f).map_err(|e| format!("Failed to render template: {}", e))?;
     Ok(())
 }
-
-
 
 #[launch]
 fn rocket() -> _ {
@@ -257,10 +305,12 @@ fn rocket() -> _ {
             rocket::custom(&rocket_config)
                 .manage(state)
                 .mount("/assets", FileServer::from("dist/assets"))
-                .mount("/", routes![index, json, autocomplete, 
+                .mount("/", routes![index_page, json, autocomplete, 
                     get_lemma, get_id, get_ili,
                     favicon, downloads, turtle,
-                    rdfxml, xml, html_synset])
+                    rdfxml, xml, html_synset,
+                    sitemap, robots])
+                    
         },
         Err(msg) => {
             eprintln!("{}", msg);

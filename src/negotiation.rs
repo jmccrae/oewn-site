@@ -30,7 +30,8 @@ impl<'r> FromRequest<'r> for ContentNegotiation {
 #[derive(Responder)]
 pub enum NegotiatedResponse {
     Redirect(Redirect),
-    Html(RawHtml<&'static str>)
+    Html(RawHtml<&'static str>),
+    HtmlDyn(RawHtml<String>)
 }
 
 
