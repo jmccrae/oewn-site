@@ -8,12 +8,19 @@ use std::fmt;
 use serde::de::{self, Visitor, MapAccess};
 use serde::ser::SerializeMap;
 use indicatif::ProgressBar;
+use redb::{TableDefinition, TypeName, Database};
+use speedy::{Readable, Writable};
+
+
+const TABLE: TableDefinition<&str, MemberSynset> = TableDefinition::new("lexicon");
 
 /// The Lexicon contains the whole WordNet graph
 pub struct Lexicon {
-    pub synsets : HashMap<SynsetId, MemberSynset>,
+    //pub synsets : HashMap<SynsetId, MemberSynset>,
+    db: redb::Database,
     entries : HashMap<String, Vec<SynsetId>>,
     synsets_by_ili : HashMap<String, SynsetId>,
+    pub synset_ids : Vec<SynsetId>
 }
 
 impl Lexicon {
@@ -22,8 +29,23 @@ impl Lexicon {
     pub fn new() -> Lexicon {
         Lexicon {
             entries: HashMap::new(),
-            synsets: HashMap::new(),
+            //synsets: HashMap::new(),
+            db: Database::create("wordnet.db").unwrap(),
             synsets_by_ili: HashMap::new(),
+            synset_ids : Vec::new()
+        }
+    }
+
+    pub fn from_disk() -> Lexicon {
+        let db = Database::open("wordnet.db").unwrap();
+        let file = File::open("wordnet.data").unwrap();
+        let (entries, synsets_by_ili, synset_ids) = 
+            <(HashMap::<String, Vec<SynsetId>>, HashMap::<String, SynsetId>, Vec::<SynsetId>)>::read_from_stream_buffered(&file).unwrap();
+        Lexicon {
+            db,
+            entries,
+            synsets_by_ili,
+            synset_ids
         }
     }
 
@@ -111,12 +133,14 @@ impl Lexicon {
     }
 
     /// Get synset data by ID
-    pub fn synset_by_id(&self, synset_id : &SynsetId) -> Option<&MemberSynset> {
-        self.synsets.get(synset_id)
+    pub fn synset_by_id(&self, synset_id : &SynsetId) -> Option<MemberSynset> {
+        let read_txn = self.db.begin_read().unwrap();
+        let table = read_txn.open_table(TABLE).unwrap();
+        table.get(synset_id.0.as_str()).unwrap().map(|x| x.value())
     }
 
     /// Get synset by ILI
-    pub fn synset_by_ili(&self, ili : &str) -> Option<(&SynsetId, &MemberSynset)> {
+    pub fn synset_by_ili(&self, ili : &str) -> Option<(&SynsetId, MemberSynset)> {
         match self.synsets_by_ili.get(ili) {
             Some(ssid) => if let Some(synset) = self.synset_by_id(ssid) {
                 Some((ssid, synset))
@@ -135,7 +159,7 @@ impl Lexicon {
 
     /// Get the synsets that start with an ID
     pub fn ssid_by_prefix(&self, prefix: &str) -> Vec<String> {
-        self.synsets.iter().filter(|(k, _)| k.0.starts_with(prefix)).map(|(k, _)| k.0.clone()).collect()
+        self.synset_ids.iter().filter(|k| k.0.starts_with(prefix)).map(|k| k.0.clone()).collect()
     }
 
     /// Get the ILIs that start with a string
@@ -319,10 +343,25 @@ pub fn add_members(synsets : HashMap<String, Synsets>, entries : &HashMap<String
             synset_members.insert(id, m);
         }
     }
+    std::fs::remove_file("wordnet.db").ok();
+    let db = Database::create("wordnet.db").unwrap();
+    let mut synset_ids = Vec::new();
+    let write_txn = db.begin_write().unwrap();
+    {
+        let mut table = write_txn.open_table(TABLE).unwrap();
+        for (id, synset) in synset_members {
+            synset_ids.push(id.clone());
+            table.insert(id.0.as_str(), synset).unwrap();
+        }
+    }
+    write_txn.commit().unwrap();
+    let mut data = File::create("wordnet.data").unwrap();
+    (&entry_map, &ili, &synset_ids).write_to_stream(&mut data).unwrap();
     Lexicon {
-        synsets: synset_members,
+        db,            
         entries: entry_map,
-        synsets_by_ili: ili
+        synsets_by_ili: ili,
+        synset_ids
     }
 }
 
@@ -430,7 +469,7 @@ fn entry_key(lemma : &str) -> String {
 }
 
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord, Readable, Writable)]
 pub struct PosKey(String);
 
 impl PosKey {
@@ -562,7 +601,7 @@ pub struct Sense {
 }
 
 
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct Pronunciation {
     value : String,
     variety : Option<String>
@@ -773,7 +812,7 @@ pub struct Synset {
     pub is_vehicle_of: Vec<SenseRelation>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct MemberSynset {
     // not found in serialized data
     pub id : SynsetId,
@@ -972,7 +1011,25 @@ pub struct MemberSynset {
     pub is_vehicle_of: Vec<SenseRelation>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+impl redb::Value for MemberSynset {
+    type SelfType<'a> = MemberSynset;
+    type AsBytes<'a> = Vec<u8>;
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+    fn from_bytes<'a>(bytes: &'a [u8]) -> MemberSynset  where Self: 'a {
+        MemberSynset::read_from_buffer(bytes).unwrap()
+    }
+    fn as_bytes<'a, 'b: 'a>(value : &MemberSynset) -> Vec<u8> {
+        value.write_to_vec().unwrap()
+    }
+    fn type_name() -> TypeName {
+        TypeName::new("MemberSynset")
+    }
+}
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct Member {
     pub lemma : String,
     pub sense : MemberSense,
@@ -988,20 +1045,20 @@ pub struct Member {
     pub entry_no : Option<u32>
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct MemberSense {
     pub id : SenseId,
     pub subcat: Vec<String>,
 }
  
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct SenseRelation {
     pub target_synset: SynsetId,
     pub source_lemma: String,
     pub target_lemma: String
 }
 
-#[derive(Debug, PartialEq,Clone)]
+#[derive(Debug, PartialEq,Clone, Readable, Writable)]
 pub struct Example {
     pub text : String,
     pub source : Option<String>
@@ -1071,7 +1128,7 @@ impl<'de> Visitor<'de> for ExampleVisitor
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub struct ILIID(String);
 
 impl ILIID {
@@ -1080,7 +1137,7 @@ impl ILIID {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Serialize, Deserialize,Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize,Clone, Readable, Writable)]
 pub enum PartOfSpeech { n, v, a, r, s }
 
 impl PartOfSpeech {
@@ -1114,7 +1171,7 @@ impl PartOfSpeech {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash, Readable, Writable)]
 pub struct SenseId(String);
 
 impl SenseId {
@@ -1123,16 +1180,13 @@ impl SenseId {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord, Readable, Writable)]
 pub struct SynsetId(String);
 
 impl SynsetId {
     pub fn new(s : &str) -> SynsetId { SynsetId(s.to_string()) }
     pub fn to_string(&self) -> String { self.0.clone() }
 }
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone,Eq,Hash,PartialOrd,Ord)]
-pub struct DeprecationRecord(String,String,String,String,String);
 
 #[derive(Error,Debug)]
 pub enum WordNetYAMLIOError {

@@ -38,8 +38,6 @@ struct State<'a> {
 static STATE: OnceCell<State> = OnceCell::new();
 
 fn prepare_server(config : &Config) -> Result<(), String> {
-    let wn = Lexicon::load(config.wn.clone().unwrap_or(".".to_string()))
-        .map_err(|e| format!("Failed to load WordNet: {}", e))?;
     let mut handlebars = Handlebars::new();
     handlebars.register_template_string("xml", include_str!("hbs/xml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_template_string("rdfxml", include_str!("hbs/rdfxml.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
@@ -49,6 +47,12 @@ fn prepare_server(config : &Config) -> Result<(), String> {
     handlebars.register_template_string("sitemap", include_str!("hbs/sitemap.hbs")).map_err(|e| format!("Failed to register template: {}", e))?;
     handlebars.register_helper("lemma_escape", Box::new(hbs::lemma_escape));
     handlebars.register_helper("long_pos", Box::new(hbs::long_pos));
+    let wn = if let Some(ref wn_path) = config.wn {
+        Lexicon::load(wn_path)
+            .map_err(|e| format!("Failed to load WordNet: {}", e))?
+    } else {
+        Lexicon::from_disk()
+    };
 
     STATE.set(State { wn, handlebars }).map_err(|_| "Failed to set state".to_string())?;
 
@@ -126,7 +130,7 @@ struct SiteMapData {
 #[get("/sitemap.xml")]
 fn sitemap() -> (ContentType, String) {
     let state = STATE.get().expect("State not set");
-    let synsets = state.wn.synsets.keys().map(|x| x.clone()).collect();
+    let synsets = state.wn.synset_ids.clone();
     let data = SiteMapData { synsets };
     (ContentType::new("application", "xml"),
         state.handlebars.render("sitemap", &data).expect("Failed to render template"))
@@ -155,12 +159,12 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
 }
 
 #[derive(Serialize)]
-struct JsonResponse<'a> {
-    synsets: Vec<&'a MemberSynset>,
+struct JsonResponse {
+    synsets: Vec<MemberSynset>,
     target_labels: HashMap<String, String>,
 }
 
-impl<'a> JsonResponse<'a> {
+impl JsonResponse {
     fn new() -> Self {
         JsonResponse {
             synsets: Vec::new(),
@@ -181,7 +185,7 @@ impl<'a> JsonResponse<'a> {
     }
 }
 
-fn resolve_query<'a>(state: &'a State, index : &str, id : &str) -> Result<JsonResponse<'a>, String> {
+fn resolve_query<'a>(state: &'a State, index : &str, id : &str) -> Result<JsonResponse, String> {
     let mut response = JsonResponse::new();
     if index == "id" {
         let ssid = SynsetId::new(id);

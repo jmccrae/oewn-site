@@ -23,7 +23,8 @@ impl SynsetsHB {
     pub fn all(lexicon : &Lexicon) -> SynsetsHB {
         let mut synsets = Vec::new();
         let mut entries = HashMap::new();
-        for synset in lexicon.synsets.values() {
+        for synset_id in lexicon.synset_ids.iter() {
+            let synset = lexicon.synset_by_id(synset_id).unwrap();
             let s2 = HBSynset::from(&synset);
             for lemma in synset.members.iter() {
                 entries.entry("en".to_string())
@@ -172,7 +173,7 @@ pub struct Relation {
     pub target : String
 }
 
-pub fn make_synsets_hb(synset_data : Vec<&MemberSynset>, 
+pub fn make_synsets_hb(synset_data : Vec<MemberSynset>, 
                     index : &str, name : &str) -> SynsetsHB {
     let mut entries = HashMap::new();
     let mut synsets = Vec::new();
