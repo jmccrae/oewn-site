@@ -1,19 +1,27 @@
 <template>
-  <v-app>
-      <!--<v-app-bar app style="background-color:#bf0a30;" density="compact">-->
-      <v-app-bar app color="grey-lighten-2" density="compact">
-          <v-app-bar-title class="justify-center">
-              <img src="./assets/english.svg" style="width: 40px;vertical-align:middle;"/>
-              <span class="en-title">Open English WordNet</span>
-          </v-app-bar-title>
-          <v-spacer></v-spacer>
-          <v-btn text to="/" color="#bf0a30">Search</v-btn>
-          <v-btn text to="/downloads" color="bfa030">Downloads</v-btn>
-      </v-app-bar>
-
+    <v-app>
       <v-main>
           <v-container fill-height style="max-width: 1140px;">
-              <RouterView/>
+              <v-row>
+                  <v-col cols="12" sm="2">
+                      <v-row class="d-flex justify-center">
+                          <img src="./assets/english.svg" class="oewn_logo"/>
+                          <span class="en-title">Open English WordNet</span>
+                      </v-row>
+                      <v-row style="margin-top:20px;">
+                          <v-col xs="1" sm="12" style="padding:0">
+                              <RouterLink to="/" class="sidebar_link">Search</RouterLink>
+                          </v-col>
+                          <v-col xs="1" sm="12" style="padding:0">
+                              <RouterLink to="/downloads" class="sidebar_link">Downloads</RouterLink>
+                          </v-col>
+                          <v-col></v-col>
+                      </v-row>
+                  </v-col>
+                  <v-col cols="12" sm="10">
+                      <RouterView/>
+                  </v-col>
+              </v-row>
               <footer class="footer">
                   <div class="container">
                       <div style="text-align:right;" class="footer1">

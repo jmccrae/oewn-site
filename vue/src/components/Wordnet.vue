@@ -88,17 +88,6 @@
 
 <template>
     <v-row>
-        <v-col sm="1" cols="12" class="d-flex justify-center">
-            <v-btn variant="text" style="margin-top:13px;">{{index}}
-                <v-menu activator="parent">
-                    <v-list>
-                        <v-list-item @click="index = 'lemma'">Lemma</v-list-item>
-                        <v-list-item @click="index = 'id'">Identifier</v-list-item>
-                        <v-list-item @click="index = 'ili'">Interlingual Identifier</v-list-item>
-                    </v-list>
-                </v-menu>
-            </v-btn>
-        </v-col>
         <v-col class="d-flex justify-center align-center">
             <v-autocomplete
                 v-model="query"
@@ -110,9 +99,21 @@
                 auto-select-first
                 ></v-autocomplete>
         </v-col>
-        <v-col sm="1" cols="12" class="d-flex justify-center">
-            <v-btn style="margin-top:13px;"
+        <v-col sm="2" cols="12" class="d-inline-flex justify-center align-center">
+            <v-row wrap>
+            <v-btn variant="text" size="small" style="margin-bottom:13px;margin-left:10px;">{{index}}
+                <v-menu activator="parent">
+                    <v-list>
+                        <v-list-item @click="index = 'lemma'">Lemma</v-list-item>
+                        <v-list-item @click="index = 'id'">Identifier</v-list-item>
+                        <v-list-item @click="index = 'ili'">Interlingual Identifier</v-list-item>
+                    </v-list>
+                </v-menu>
+            </v-btn>
+            <v-btn
                 id="opts-activator"
+                size="small"
+                style="margin-bottom: 13px;"
                 variant="text">Options</v-btn>
             <v-menu activator="#opts-activator"
                 :close-on-content-click="false"
@@ -137,7 +138,8 @@
                     </v-list>
                 </v-card>
             </v-menu>
-        </v-col>
+            </v-row>
+         </v-col>
     </v-row>
     <v-row>
         <v-col>

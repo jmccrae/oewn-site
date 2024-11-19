@@ -36,6 +36,7 @@ h1 {
     font-weight: 700;
     color: #002868;
     vertical-align: middle;
+    text-align: center;
 }
 
 h3 {
@@ -325,4 +326,21 @@ body.md-default-theme, body, html.md-default-theme, html {
 
 .v-switch .v-input__details {
     display: none;
+}
+
+.sidebar_link {
+    text-decoration:none;
+    color: #002868;
+    margin-left: 30px;
+}
+
+.oewn_logo {
+    width: 150px;
+    text-align:center;
+}
+
+@media (max-width: 600px) {
+    .oewn_logo {
+        width: 50px;
+    }
 }
