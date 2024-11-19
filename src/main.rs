@@ -112,6 +112,16 @@ fn downloads() -> RawHtml<&'static str> {
     RawHtml(include_str!("../dist/index.html"))
 }
 
+#[get("/edit")]
+fn edit_page() -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
+#[get("/edit/<_ssid>")]
+fn edit_page2(_ssid: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
 #[get("/favicon.ico")]
 fn favicon() -> (ContentType, &'static [u8]) {
     (ContentType::Icon, include_bytes!("favicon.ico"))
@@ -157,6 +167,40 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
     let results = results.iter().take(100).collect::<Vec<_>>();
     RawJson(serde_json::to_string(&results).expect("Failed to serialize"))
 }
+
+#[derive(Serialize)]
+struct SynsetData {
+    title: String,
+    value: String,
+}
+
+#[get("/autocomplete_synset/<query>")]
+fn autocomplete_synset(query: &str) -> RawJson<String> {
+    let state = STATE.get().expect("State not set");
+    let mut lemmas = state.wn.lemma_by_prefix(query);
+    lemmas.sort_by(|a, b| {
+        match a.to_lowercase().cmp(&b.to_lowercase()) {
+            std::cmp::Ordering::Equal => a.cmp(b).reverse(),
+            x => x
+        }
+    });
+    let mut results = Vec::new();
+    for lemma in lemmas {
+        for ssid in state.wn.entry_by_lemma(&lemma).iter() {
+            if let Some(synset) = state.wn.synset_by_id(ssid) {
+                results.push(SynsetData {
+                    title: format!("{} - {}", lemma, synset.definition[0]),
+                    value: ssid.to_string()
+                });
+            }
+        }
+        if results.len() > 100 {
+            break;
+        }
+    }
+    RawJson(serde_json::to_string(&results).expect("Failed to serialize"))
+}
+
 
 #[derive(Serialize)]
 struct JsonResponse {
@@ -287,7 +331,9 @@ fn rocket() -> _ {
                     get_lemma, get_id, get_ili,
                     favicon, downloads, turtle,
                     rdfxml, xml, html_synset,
-                    sitemap, robots])
+                    sitemap, robots,
+                    autocomplete_synset, edit_page,
+                    edit_page2])
                     
         },
         Err(msg) => {

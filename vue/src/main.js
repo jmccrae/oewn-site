@@ -14,6 +14,7 @@ loadFonts()
 const routes = [
     { path: "/:index/:query", component: Wordnet },
     { path: '/', component: Wordnet },
+    { path: '/edit/:query', component: editor },
     { path: '/edit', component: editor },
     { path: '/downloads', component: downloads }
     //{ path: '/:index/:query', component: Wordnet, props: true }

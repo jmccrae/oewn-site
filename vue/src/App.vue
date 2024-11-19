@@ -15,6 +15,9 @@
                           <v-col xs="1" sm="12" style="padding:0">
                               <RouterLink to="/downloads" class="sidebar_link">Downloads</RouterLink>
                           </v-col>
+                          <v-col xs="1" sm="12" style="padding:0">
+                              <RouterLink to="/edit" class="sidebar_link">Editor</RouterLink>
+                          </v-col>
                           <v-col></v-col>
                       </v-row>
                   </v-col>
