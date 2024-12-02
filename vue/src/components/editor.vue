@@ -1,5 +1,7 @@
 <script>
     import axios from 'axios';
+    import yaml from 'yaml';
+    import synsetSearch from './synset_search.vue';
 
     const RELATIONS = {
         "agent": { "sense": true, "name": "Agent" },
@@ -77,7 +79,10 @@
                 loading: false,
                 searchTerm: '',
                 relation_names: [],
-                yaml: ''
+                changes: [],
+                yaml_changes: "",
+                addMemberDialog: false,
+                newMember: "",
             }
         },
         methods: {
@@ -111,6 +116,89 @@
                         this.loading = false;
                     });
             },
+            changeDefinition() {
+                this.changes = this.changes.filter(change => !('change_definition' in change) || change.change_definition.synset !== this.synset.id);
+                this.changes.push({"change_definition": {"synset": this.synset.id, "definition": this.synset.definition[0]}});
+            },
+            changeILI() {
+                this.changes = this.changes.filter(change => !('change_ili' in change) || change.change_ili.synset !== this.synset.id);
+                this.changes.push({"change_ili": {"synset": this.synset.id, "ili": this.synset.ili}});
+            },
+            changeWikiData() {
+                this.changes = this.changes.filter(change => !('change_wikidata' in change) || change.change_wikidata.synset !== this.synset.id);
+                this.changes.push({"change_wikidata": {"synset": this.synset.id, "wikidata": this.synset.wikidata}});
+            },
+            changeSource() {
+                this.changes = this.changes.filter(change => !('change_source' in change) || change.change_source.synset !== this.synset.id);
+                this.changes.push({"change_source": {"synset": this.synset.id, "source": this.synset.source}});
+            },
+            changeMembers() {
+                this.changes = this.changes.filter(change => !('change_members' in change) || change.change_members.synset !== this.synset.id);
+                var member_list = [];
+                for (const member of this.synset.members) {
+                    member_list.push(member.lemma);
+                }
+                this.changes.push({"change_members": {"synset": this.synset.id, "members": member_list}});
+            },
+            addMember() {
+                this.addMemberDialog = false; 
+                this.synset.members.push({'lemma': this.newMember});
+                this.newMember = "";
+                this.changeMembers();
+            },
+            moveMember(index) {
+                alert("TODO");
+            },
+            upMember(index) {
+                this.synset.members.splice(index - 1, 0, this.synset.members.splice(index, 1)[0]);
+                this.changeMembers();
+            },
+            downMember(index) {
+                this.synset.members.splice(index + 1, 0, this.synset.members.splice(index, 1)[0]);
+                this.changeMembers();
+            },
+            removeMember(index) {
+                this.synset.members.splice(index, 1);
+                this.changeMembers();
+            },
+            changeRelationSynset(index, value, lemma) {
+                this.relations[index].target_synset = value;
+                if ("target_lemma" in this.relations[index]) {
+                    this.relations[index].target_lemma = lemma;
+                }
+            },
+            is_sense(rel) {
+                return RELATIONS[rel].sense;
+            },
+            addRelation() {
+                this.relations.push({"rel": "hypernym", "target_synset": "00001740-n"});
+                this.changes.push({"add_relation": {"source": this.synset.id, "relation": "hypernym", "target": "00001740-n"}});
+                this.yaml_changes = yaml.stringify(this.changes);
+            },
+            deleteRelation(index) {
+                // TODO: EWE delete_relation also for sense relations
+                this.changes.push({"delete_relation": {"source": this.synset.id, "target": this.relations[index].target_synset}});
+                this.relations.splice(index, 1);
+                this.yaml_changes = yaml.stringify(this.changes);
+            },
+            changeRelationType(index) {
+                this.changes = this.changes.filter(change => !('add_relation' in change) || 
+                    change.add_relation.source != this.synset.id ||
+                    change.add_relation.target != this.relations[index].target_synset);
+                var obj = {"add_relation": { "source": this.synset.id, 
+                    "relation": this.relations[index].rel, 
+                    "target": this.relations[index].target_synset }};
+                // TODO: EWE understand source_lemma target_lemma
+                if("source_lemma" in this.relations[index]) {
+                    obj.add_relation.source_lemma = this.relations[index].source_lemma;
+                }
+                if("target_lemma" in this.relations[index]) {
+                    obj.add_relation.target_lemma = this.relations[index].target_lemma;
+                }
+                this.changes.push(obj);
+                this.yaml_changes = yaml.stringify(this.changes);
+            },
+
         },
         watch: {
             searchTerm(val) {
@@ -133,6 +221,9 @@
                         }
                     }
                 }
+            },
+            changes(newVal) {
+                this.yaml_changes = yaml.stringify(newVal);
             }
         },
         beforeMount() {
@@ -146,6 +237,9 @@
                     "value": rel_name
                 });
             }
+        },
+        components: {
+            synsetSearch
         },
     }
 </script>
@@ -172,17 +266,21 @@
         <v-col>
             <v-form>
                 <v-row>
-                    <v-text-field label="Definition" v-model="synset.definition[0]" required></v-text-field>
+                    <v-text-field label="Definition" v-model="synset.definition[0]" 
+                        @change="changeDefinition()" required></v-text-field>
                 </v-row>
                 <v-row>
                     <v-col cols="4">
-                        <v-text-field label="ILI" v-model="synset.ili"></v-text-field>
+                        <v-text-field label="ILI" v-model="synset.ili"
+                            @change="changeILI()"></v-text-field>
                     </v-col>
                     <v-col cols="4">
-                        <v-text-field label="Wikidata" v-model="synset.wikidata"></v-text-field>
+                        <v-text-field label="Wikidata" v-model="synset.wikidata"
+                            @change="changeWikidata()"></v-text-field>
                     </v-col>
                     <v-col cols="4">
-                        <v-text-field label="Source" v-model="synset.source"></v-text-field>  
+                        <v-text-field label="Source" v-model="synset.source"
+                            @change="changeSource()"></v-text-field>
                     </v-col>
                 </v-row>
                 <v-row>
@@ -190,25 +288,42 @@
                         <h3>Members</h3>
                     </v-col>
                     <v-col cols="1">
-                        <v-btn icon @click="synset.member.push('')">
+                        <v-btn icon @click="addMemberDialog = true">
                             <v-icon>mdi-plus</v-icon>
                         </v-btn>
+                        <v-dialog v-model="addMemberDialog" max-width="400px">
+                            <v-card>
+                                <v-card-title>Add Member</v-card-title>
+                                <v-card-text>
+                                    <v-text-field v-model="newMember"></v-text-field>
+                                </v-card-text>
+                                <v-card-actions>
+                                    <v-btn @click="addMemberDialog = false">Cancel</v-btn>
+                                    <v-btn @click="addMember()">Add</v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
                     </v-col>
                 </v-row>
-                <v-row v-for="(member, index) in synset.members" :key="index" class="ma-0 pa=0">
-                    <v-col cols="9" class="pa-0">
-                        <v-text-field required :model-value="member.lemma"></v-text-field>
-                    </v-col>
-                    <v-col cols="1">
-                        <v-btn icon><v-icon>mdi-arrow-up-bold</v-icon></v-btn>
-                    </v-col>
-                    <v-col cols="1">
-                        <v-btn icon><v-icon>mdi-arrow-down-bold</v-icon></v-btn>
-                    </v-col>
-                    <v-col cols="1">
-                        <v-btn icon @click="synset.member.splice(index, 1)">
-                            <v-icon>mdi-delete</v-icon>
-                        </v-btn>
+                <v-row>
+                    <v-col cols="12">
+                        <v-card max-width="400px">
+                            <v-list dense>
+                                <v-list-item v-for="(member, index) in synset.members" :key="index">
+                                    <v-list-item-title>{{ member.lemma }}</v-list-item-title>
+                                    <template v-slot:append>
+                                        <v-btn icon @click="upMember(index)" class="mr-2" v-if="index > 0"><v-icon>mdi-arrow-up-bold</v-icon></v-btn>
+                                        <div class="mr-14" v-if="index == 0"></div>
+                                        <v-btn icon @click="downMember(index)" class="mr-2" v-if="index < synset.members.length - 1"><v-icon>mdi-arrow-down-bold</v-icon></v-btn>
+                                        <div class="mr-14" v-if="index == synset.members.length - 1"></div>
+                                        <v-btn icon @click="moveMember(index)" class="mr-2"><v-icon>mdi-swap-horizontal-bold</v-icon></v-btn>
+                                        <v-btn icon @click="removeMember(index)">
+                                            <v-icon>mdi-delete</v-icon>
+                                        </v-btn>
+                                    </template>
+                                </v-list-item>
+                            </v-list>
+                        </v-card>
                     </v-col>
                 </v-row>
                 <v-row>
@@ -216,27 +331,33 @@
                         <h3>Relations</h3>
                     </v-col>
                     <v-col cols="1">
-                        <v-btn icon @click="synset.relations.push({})">
+                        <v-btn icon @click="addRelation()">
                             <v-icon>mdi-plus</v-icon>
                         </v-btn>
                     </v-col>
                 </v-row>
                 <v-row v-for="relation in relations" class="ma-0 pa-0">
-                    <v-col cols="3" class="pa-0">
-                        <v-select :items="relation_names" v-model="relation.rel"></v-select>
-                    </v-col>
-                    <v-col cols="3" class="pa-0">
-                        <v-text-field v-model="relation.target_synset"></v-text-field>
-                    </v-col>
+                    {{relation}}
+                </v-row>
+                <v-row v-for="(relation, index) in relations" class="ma-0 pa-0" :key="index">
                     <v-col cols="2" class="pa-0">
-                        <v-text-field v-if="relation.source_lemma" v-model="relation.source_lemma"></v-text-field>
+                        <v-combobox
+                                :items="synset.members.map(member => member.lemma)"
+                                v-model="relation.source_lemma"
+                                v-if="is_sense(relation.rel)"></v-combobox>
                     </v-col>
-                    <v-col cols="2" class="pa-0">
-                        <v-text-field v-if="relation.target_lemma" v-model="relation.target_lemma"></v-text-field>
+                    <v-col cols="3" class="pa-0">
+                        <v-select :items="relation_names" v-model="relation.rel"
+                            @update:modelValue="changeRelationType(index)"></v-select>
                     </v-col>
-                    <v-col cols="1"></v-col>
+                    <v-col cols="6" class="pa-0">
+                        <synsetSearch 
+                            @change_value="(value, lemma) => changeRelationSynset(index, value, lemma)"
+                            :value="relation.target_synset"
+                            :lemma="relation.target_lemma"></synsetSearch>
+                    </v-col>
                     <v-col cols="1">
-                        <v-btn icon @click="synset.relations.splice(index, 1)">
+                        <v-btn icon @click="deleteRelation(index)">
                             <v-icon>mdi-delete</v-icon>
                         </v-btn>
                     </v-col>
@@ -265,6 +386,6 @@
         </v-col>
     </v-row>
     <v-row>
-        <v-textarea v-model="yaml" disabled="true"></v-textarea>
+        <pre>{{yaml_changes}}</pre>
     </v-row>
 </template>

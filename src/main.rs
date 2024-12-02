@@ -171,6 +171,8 @@ fn autocomplete(index : &str, query: &str) -> RawJson<String> {
 #[derive(Serialize)]
 struct SynsetData {
     title: String,
+    lemma: String,
+    definition: String,
     value: String,
 }
 
@@ -190,6 +192,8 @@ fn autocomplete_synset(query: &str) -> RawJson<String> {
             if let Some(synset) = state.wn.synset_by_id(ssid) {
                 results.push(SynsetData {
                     title: format!("{} - {}", lemma, synset.definition[0]),
+                    lemma: lemma.clone(),
+                    definition: synset.definition[0].to_string(),
                     value: ssid.to_string()
                 });
             }
