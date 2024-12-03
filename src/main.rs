@@ -231,6 +231,11 @@ impl JsonResponse {
             }
         }
     }
+
+    fn merge(&mut self, other : JsonResponse) {
+        self.synsets.extend(other.synsets);
+        self.target_labels.extend(other.target_labels);
+    }
 }
 
 fn resolve_query<'a>(state: &'a State, index : &str, id : &str) -> Result<JsonResponse, String> {
@@ -307,6 +312,18 @@ fn html_synset(ssid : &str) -> Result<RawHtml<String>, String> {
     }
 }
 
+#[get("/json/ids?<id>")]
+fn ids(id : Vec<&str>) -> Result<RawJson<String>, String> {
+    let state = STATE.get().expect("State not set");
+    let mut response = JsonResponse::new();
+    for i in id {
+        response.merge(resolve_query(&state, "id", i)?);
+    }
+    response.add_targets(&state.wn);
+    Ok(RawJson(serde_json::to_string(&response).map_err(|e| format!("Failed to serialize: {}", e))?))
+}
+
+
 fn dump_ttl(file : &str) -> Result<(), String> {
     let mut f = std::fs::File::create(file).map_err(|e| format!("Failed to open file: {}", e))?;
     let state = STATE.get().expect("State not set");
@@ -337,7 +354,7 @@ fn rocket() -> _ {
                     rdfxml, xml, html_synset,
                     sitemap, robots,
                     autocomplete_synset, edit_page,
-                    edit_page2])
+                    edit_page2, ids])
                     
         },
         Err(msg) => {

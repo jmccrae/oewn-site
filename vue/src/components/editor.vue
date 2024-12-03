@@ -83,6 +83,8 @@
                 yaml_changes: "",
                 addMemberDialog: false,
                 newMember: "",
+                addExampleDialog: false,
+                newExample: "",
             }
         },
         methods: {
@@ -177,7 +179,14 @@
             },
             deleteRelation(index) {
                 // TODO: EWE delete_relation also for sense relations
-                this.changes.push({"delete_relation": {"source": this.synset.id, "target": this.relations[index].target_synset}});
+                var obj = {"delete_relation": {"source": this.synset.id, "target": this.relations[index].target_synset}};
+                if("source_lemma" in this.relations[index]) {
+                    obj.delete_relation.source_lemma = this.relations[index].source_lemma;
+                }
+                if("target_lemma" in this.relations[index]) {
+                    obj.delete_relation.target_lemma = this.relations[index].target_lemma;
+                }
+                this.changes.push(obj);
                 this.relations.splice(index, 1);
                 this.yaml_changes = yaml.stringify(this.changes);
             },
@@ -198,6 +207,19 @@
                 this.changes.push(obj);
                 this.yaml_changes = yaml.stringify(this.changes);
             },
+            addExample() {
+                this.addExampleDialog = false; 
+                this.synset.example.push(this.newExample);
+                this.changes.push({"add_example": {"synset": this.synset.id, "example": this.newExample}});
+                this.yaml_changes = yaml.stringify(this.changes);
+                this.newExample = "";
+            },
+            removeExample(index) {
+                this.synset.example.splice(index, 1);
+                this.changes.push({"delete_example": {"synset": this.synset.id, "number": index}});
+                this.yaml_changes = yaml.stringify(this.changes);
+            },
+
 
         },
         watch: {
@@ -336,15 +358,13 @@
                         </v-btn>
                     </v-col>
                 </v-row>
-                <v-row v-for="relation in relations" class="ma-0 pa-0">
-                    {{relation}}
-                </v-row>
                 <v-row v-for="(relation, index) in relations" class="ma-0 pa-0" :key="index">
                     <v-col cols="2" class="pa-0">
-                        <v-combobox
+                        <v-select
                                 :items="synset.members.map(member => member.lemma)"
                                 v-model="relation.source_lemma"
-                                v-if="is_sense(relation.rel)"></v-combobox>
+                                v-if="is_sense(relation.rel)"
+                                @update:modelValue="changeRelationType(index)"></v-select>
                     </v-col>
                     <v-col cols="3" class="pa-0">
                         <v-select :items="relation_names" v-model="relation.rel"
@@ -367,25 +387,51 @@
                         <h3>Examples</h3>
                     </v-col>
                     <v-col cols="1">
-                        <v-btn icon @click="synset.example.push('')">
+                        <v-btn icon @click="addExampleDialog = true">
                             <v-icon>mdi-plus</v-icon>
                         </v-btn>
+                        <v-dialog v-model="addExampleDialog" max-width="400px">
+                            <v-card>
+                                <v-card-title>Add Example</v-card-title>
+                                <v-card-text>
+                                    <v-text-field v-model="newExample"></v-text-field>
+                                </v-card-text>
+                                <v-card-actions>
+                                    <v-btn @click="addExampleDialog = false">Cancel</v-btn>
+                                    <v-btn @click="addExample()">Add</v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
                     </v-col>
                 </v-row>
-                <v-row v-for="(example, index) in synset.example" :key="index" class="ma-0 pa-0">
-                    <v-col cols="11" class="pa-0">
-                        <v-text-field required :model-value="example" size="small"></v-text-field>
-                    </v-col>
-                    <v-col cols="1">
-                        <v-btn icon @click="synset.example.splice(index, 1)">
-                            <v-icon>mdi-delete</v-icon>
-                        </v-btn>
+                <v-row>
+                    <v-col cols="12">
+                        <v-card max-width="600px">
+                            <v-list dense>
+                                <v-list-item v-for="(example, index) in synset.example" :key="index">
+                                    <v-list-item-title>{{ example }}</v-list-item-title>
+                                    <template v-slot:append>
+                                        <v-btn icon @click="removeExample(index)">
+                                            <v-icon>mdi-delete</v-icon>
+                                        </v-btn>
+                                    </template>
+                                </v-list-item>
+                            </v-list>
+                        </v-card>
                     </v-col>
                 </v-row>
              </v-form>
         </v-col>
     </v-row>
     <v-row>
-        <pre>{{yaml_changes}}</pre>
+        <v-col cols="3">
+            <b>Number of changes:</b> {{ changes.length }}
+        </v-col>
+        <v-col cols="6">
+        </v-col>
+        <v-col cols="3">
+            <v-btn v-bind:href="'data:text/yaml;charset=utf-8,' + encodeURIComponent(yaml_changes)" download="changes.yaml">
+                <v-icon>mdi-download</v-icon>Download Changes</v-btn>
+        </v-col>
     </v-row>
 </template>

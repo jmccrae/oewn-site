@@ -19,7 +19,6 @@
                     pronunciation: false
                 },
                 synsets: {},
-                entries: {},
                 target_labels: {},
                 completions: [],
                 loading: false,
@@ -37,7 +36,6 @@
                     .get('/json/' + this.index + '/' + query)
                     .then(response => {
                         this.synsets = response.data.synsets;
-                        this.entries = response.data.entries;
                         this.target_labels = response.data.target_labels;
                         this.$router.push("/" + this.index + "/" + query);
                         this.lastQuery = query;
@@ -147,7 +145,7 @@
                 <h3 class="pos_label">Nouns</h3>
                 <div v-for="ss in synsets">
                     <synset v-if="ss.partOfSpeech == 'n'"
-                    :synset="ss" :display="display" :focus="focus" :entries="entries"
+                    :synset="ss" :display="display" :focus="focus" 
                     :target_labels="target_labels"></synset>
                 </div>
             </span>
@@ -155,7 +153,7 @@
                 <h3 class="pos_label">Verbs</h3>
                 <div v-for="ss in synsets">
                     <synset v-if="ss.partOfSpeech == 'v'"
-                    :synset="ss" :display="display" :focus="focus" :entries="entries"
+                    :synset="ss" :display="display" :focus="focus" 
                     :target_labels="target_labels"></synset>
                 </div>
             </span>
@@ -163,7 +161,7 @@
                 <h3 class="pos_label">Adverbs</h3>
                 <div v-for="ss in synsets">
                     <synset v-if="ss.partOfSpeech == 'r'"
-                    :synset="ss" :display="display" :focus="focus" :entries="entries"
+                    :synset="ss" :display="display" :focus="focus" 
                     :target_labels="target_labels"></synset>
                 </div>
             </span>
@@ -171,7 +169,7 @@
                 <h3 class="pos_label">Adjectives</h3>
                 <div v-for="ss in synsets">
                     <synset v-if="ss.partOfSpeech == 'a' || ss.partOfSpeech == 's'"
-                    :synset="ss" :display="display" :focus="focus" :entries="entries"
+                    :synset="ss" :display="display" :focus="focus" 
                     :target_labels="target_labels"></synset>
                 </div>
             </span>
