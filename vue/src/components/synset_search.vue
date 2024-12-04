@@ -8,6 +8,9 @@
             },
             "lemma": {
                 type: String
+            },
+            "label": {
+                type: String
             }
         },
         name: 'synsetSearch',
@@ -48,10 +51,7 @@
             },
             search() {
                 for (const completion of this.completions) {
-                    console.log(completion.value);
-                    console.log(this.query);
                     if (completion.value == this.query) {
-                        console.log("found");
                         this.definition = completion.definition;
                         this.query_lemma = completion.lemma;
                         this.$emit('update:value', completion.value);
@@ -97,6 +97,7 @@
 
 <template>
     <v-autocomplete
+            :label="label"
             v-model="query"
             :items="completions"
             :debounce="300"

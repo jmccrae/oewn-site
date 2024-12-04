@@ -72,6 +72,7 @@
             return {
                 synset: {},
                 relations: {},
+                old_relations: {},
                 query: '',
                 ssid: '',
                 lastQuery: '',
@@ -82,9 +83,67 @@
                 changes: [],
                 yaml_changes: "",
                 addMemberDialog: false,
+                addMemberValid: false,
                 newMember: "",
                 addExampleDialog: false,
                 newExample: "",
+                deleteSynsetDialog: false,
+                deleteReason: "",
+                deleteSynset: "",
+                deleteSynsetValid: false,
+                addSynsetDialog: false,
+                addSynsetValid: false,
+                newSynset: {
+                    "definition": "",
+                    "lexfile": "",
+                    "lemma": ""
+                },
+                lexfiles: [
+                    "adj.all",
+                    "adj.pert",
+                    "adv.all",
+                    "noun.Tops",
+                    "noun.act",
+                    "noun.animal",
+                    "noun.artifact",
+                    "noun.attribute",
+                    "noun.body",
+                    "noun.cognition",
+                    "noun.communication",
+                    "noun.event",
+                    "noun.feeling",
+                    "noun.food",
+                    "noun.group",
+                    "noun.location",
+                    "noun.motive",
+                    "noun.object",
+                    "noun.person",
+                    "noun.phenomenon",
+                    "noun.plant",
+                    "noun.possession",
+                    "noun.process",
+                    "noun.quantity",
+                    "noun.relation",
+                    "noun.shape",
+                    "noun.state",
+                    "noun.substance",
+                    "noun.time",
+                    "verb.body",
+                    "verb.change",
+                    "verb.cognition",
+                    "verb.communication",
+                    "verb.competition",
+                    "verb.consumption",
+                    "verb.contact",
+                    "verb.creation",
+                    "verb.emotion",
+                    "verb.motion",
+                    "verb.perception",
+                    "verb.possession",
+                    "verb.social",
+                    "verb.stative",
+                    "verb.weather"
+                ]
             }
         },
         methods: {
@@ -164,10 +223,32 @@
                 this.changeMembers();
             },
             changeRelationSynset(index, value, lemma) {
+                var obj = {"delete_relation": { "source": this.synset.id,
+                    "target": this.old_relations[index].target_synset }};
+                if("source_lemma" in this.relations[index]) {
+                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
+                }
+                if("target_lemma" in this.relations[index]) {
+                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
+                }
+                this.changes.push(obj);
+
                 this.relations[index].target_synset = value;
                 if ("target_lemma" in this.relations[index]) {
                     this.relations[index].target_lemma = lemma;
                 }
+
+                var obj = {"add_relation": { "source": this.synset.id, 
+                    "relation": this.relations[index].rel, 
+                    "target": value }};
+                if("target_lemma" in this.relations[index]) {
+                    obj.change_relation.target_lemma = lemma;
+                }
+                if("source_lemma" in this.relations[index]) {
+                    obj.change_relation.source_lemma = this.relations[index].source_lemma;
+                }
+                this.changes.push(obj);
+                this.yaml_changes = yaml.stringify(this.changes);
             },
             is_sense(rel) {
                 return RELATIONS[rel].sense;
@@ -178,26 +259,30 @@
                 this.yaml_changes = yaml.stringify(this.changes);
             },
             deleteRelation(index) {
-                // TODO: EWE delete_relation also for sense relations
-                var obj = {"delete_relation": {"source": this.synset.id, "target": this.relations[index].target_synset}};
-                if("source_lemma" in this.relations[index]) {
-                    obj.delete_relation.source_lemma = this.relations[index].source_lemma;
+                var obj = {"delete_relation": {"source": this.synset.id, "target": this.old_relations[index].target_synset}};
+                if("source_lemma" in this.old_relations[index]) {
+                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
                 }
-                if("target_lemma" in this.relations[index]) {
-                    obj.delete_relation.target_lemma = this.relations[index].target_lemma;
+                if("target_lemma" in this.old_relations[index]) {
+                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
                 }
                 this.changes.push(obj);
                 this.relations.splice(index, 1);
                 this.yaml_changes = yaml.stringify(this.changes);
             },
             changeRelationType(index) {
-                this.changes = this.changes.filter(change => !('add_relation' in change) || 
-                    change.add_relation.source != this.synset.id ||
-                    change.add_relation.target != this.relations[index].target_synset);
+                var obj = {"delete_relation": { "source": this.synset.id,
+                    "target": this.old_relations[index].target_synset }};
+                if("source_lemma" in this.old_relations[index]) {
+                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
+                }
+                if("target_lemma" in this.old_relations[index]) {
+                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
+                }
+                this.changes.push(obj);
                 var obj = {"add_relation": { "source": this.synset.id, 
                     "relation": this.relations[index].rel, 
                     "target": this.relations[index].target_synset }};
-                // TODO: EWE understand source_lemma target_lemma
                 if("source_lemma" in this.relations[index]) {
                     obj.add_relation.source_lemma = this.relations[index].source_lemma;
                 }
@@ -219,8 +304,15 @@
                 this.changes.push({"delete_example": {"synset": this.synset.id, "number": index}});
                 this.yaml_changes = yaml.stringify(this.changes);
             },
-
-
+            deleteSynset() {
+                this.deleteSynsetDialog = false;
+                this.changes.push({"delete_synset": {"synset": this.synset.id, 
+                    "reason": this.deleteReason,
+                    "superseded_by": this.deleteSynset}});
+                this.yaml_changes = yaml.stringify(this.changes);
+                this.$router.push("/edit");
+                this.synset = {};
+            }
         },
         watch: {
             searchTerm(val) {
@@ -243,6 +335,7 @@
                         }
                     }
                 }
+                this.old_relations = JSON.parse(JSON.stringify(this.relations));
             },
             changes(newVal) {
                 this.yaml_changes = yaml.stringify(newVal);
@@ -273,7 +366,7 @@
         </v-col>
     </v-row>
     <v-row>
-        <v-col>
+        <v-col cols="8">
             <v-autocomplete
                     v-model="query"
                     :items="completions"
@@ -283,12 +376,62 @@
                     :loading="loading"
                     auto-select-first></v-autocomplete>
         </v-col>
+        <v-col cols="4">
+            <v-btn @click="deleteSynsetDialog = true"
+               :disabled="Object.keys(synset).length == 0">
+                <v-icon>mdi-delete</v-icon> Delete Synset
+            </v-btn>
+            <v-dialog v-model="deleteSynsetDialog" max-width="400px">
+                <v-card>
+                    <v-card-title>Delete synset</v-card-title>
+                    <v-card-text>
+                        <v-form v-model="deleteSynsetValid" fail-fast>
+                            <v-text-field label="Reason" v-model="deleteReason"
+                                required :rules="[v => !!v || 'Reason is required']"></v-text-field>
+                            <synsetSearch
+                                    label="Superseded by" :value="deleteSynset"
+                                    :rules="[deleteSynset != '' || 'Superseded by is required']"
+                                         ></synsetSearch>
+                        </v-form>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-btn @click="deleteSynsetDialog = false">Cancel</v-btn>
+                        <v-btn @click="deleteSynset()" :disabled="!deleteSynsetValid">Delete</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+            <v-btn @click="addSynsetDialog = true">
+                <v-icon>mdi-plus</v-icon> Add Synset
+            </v-btn>
+            <v-dialog v-model="addSynsetDialog" max-width="400px">
+                <v-card>
+                    <v-card-title>Add synset</v-card-title>
+                    <v-card-text>
+                        <v-form v-model="addSynsetValid" fast-fail>
+                            <v-text-field label="Definition" 
+                                          v-model="newSynset.definition" required
+                                          :rules="[v => !!v || 'Definition is required']"></v-text-field>
+                            <v-select label="Lexicographer File" :items="lexfiles" 
+                                      v-model="newSynset.lexfile" required 
+                                      :rules="[v => !!v || 'Lexicographer file is required']"></v-select>
+                            <v-text-field label="Lemma" v-model="newSynset.lemma" 
+                                                        required
+                                                        :rules="[v => !!v || 'Lemma is required']"></v-text-field>
+                        </v-form>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-btn @click="addSynsetDialog = false">Cancel</v-btn>
+                        <v-btn @click="addSynset()" :disabled="!addSynsetValid">Add</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+        </v-col>
     </v-row>
-    <v-row>
+    <v-row v-if="Object.keys(synset).length > 0">
         <v-col>
             <v-form>
                 <v-row>
-                    <v-text-field label="Definition" v-model="synset.definition[0]" 
+                    <v-text-field label="Definition" v-model="synset.definition[0]" v-if="synset.definition"
                         @change="changeDefinition()" required></v-text-field>
                 </v-row>
                 <v-row>
@@ -314,16 +457,19 @@
                             <v-icon>mdi-plus</v-icon>
                         </v-btn>
                         <v-dialog v-model="addMemberDialog" max-width="400px">
-                            <v-card>
-                                <v-card-title>Add Member</v-card-title>
-                                <v-card-text>
-                                    <v-text-field v-model="newMember"></v-text-field>
-                                </v-card-text>
-                                <v-card-actions>
-                                    <v-btn @click="addMemberDialog = false">Cancel</v-btn>
-                                    <v-btn @click="addMember()">Add</v-btn>
-                                </v-card-actions>
-                            </v-card>
+                                <v-card>
+                                    <v-card-title>Add Member</v-card-title>
+                                    <v-card-text>
+                                        <v-form v-model="addMemberValid">
+                                            <v-text-field v-model="newMember" required></v-text-field>
+                                        </v-form>
+                                    </v-card-text>
+                                    <v-card-actions>
+                                        <v-btn @click="addMemberDialog = false">Cancel</v-btn>
+                                        <v-btn @click="addMember()"
+                                            :disabled="!addMemberValid">Add</v-btn>
+                                    </v-card-actions>
+                                </v-card>
                         </v-dialog>
                     </v-col>
                 </v-row>
@@ -430,7 +576,7 @@
         <v-col cols="6">
         </v-col>
         <v-col cols="3">
-            <v-btn v-bind:href="'data:text/yaml;charset=utf-8,' + encodeURIComponent(yaml_changes)" download="changes.yaml">
+            <v-btn v-bind:href="'data:text/yaml;charset=utf-8,' + encodeURIComponent(yaml_changes)" download="changes.yaml" :disabled="changes.length == 0">
                 <v-icon>mdi-download</v-icon>Download Changes</v-btn>
         </v-col>
     </v-row>
