@@ -15,7 +15,14 @@ use rocket::http::ContentType;
 use once_cell::sync::OnceCell;
 use wordnet::{Lexicon, SynsetId, MemberSynset};
 use std::collections::HashMap;
+use std::fs::File;
+use std::path::Path;
 use serde::Serialize;
+use teanga::Corpus;
+use teanga::disk_corpus::DiskCorpus;
+use teanga::query::QueryBuilder;
+use teanga::layer::TeangaData;
+use teanga;
 
 #[derive(Parser,Debug)]
 #[command(name = "English WordNet Interface")]
@@ -32,7 +39,8 @@ struct Config {
 
 struct State<'a> {
     wn : wordnet::Lexicon,
-    handlebars : Handlebars<'a>
+    handlebars : Handlebars<'a>,
+    corpora : HashMap<String, DiskCorpus>,
 }
 
 static STATE: OnceCell<State> = OnceCell::new();
@@ -53,8 +61,24 @@ fn prepare_server(config : &Config) -> Result<(), String> {
     } else {
         Lexicon::from_disk()
     };
+    let mut corpora = HashMap::new();
+    for file in vec!["raganato_ALL.yaml", "semcor.yaml"] {
+    //for file in vec!["raganato_ALL.yaml", "semcor.yaml", "wngt.yaml"] {
+        let name = file[..file.len()-5].to_string();
+        let new_corpus = !Path::new(&format!("{}.db", name)).exists();
+        let mut corpus = DiskCorpus::new(&format!("{}.db", name))
+            .map_err(|e| format!("Failed to open corpus: {}", e))?;
+        if new_corpus {
+            eprintln!("Loading corpus {}", name);
+            let file = File::open(file).map_err(|e| format!("Failed to open corpus file: {}", e))?;
+            teanga::read_yaml(file, &mut corpus)
+                .map_err(|e| format!("Failed to read corpus file: {}", e))?;
+        }
+        corpora.insert(name, corpus);
+    }
 
-    STATE.set(State { wn, handlebars }).map_err(|_| "Failed to set state".to_string())?;
+
+    STATE.set(State { wn, handlebars, corpora }).map_err(|_| "Failed to set state".to_string())?;
 
     Ok(())
 }
@@ -333,6 +357,44 @@ fn dump_ttl(file : &str) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct CorpusDocument {
+    text : String,
+    highlights : Vec<(usize, usize)>,
+}
+
+#[get("/corpus/<id>?<offset>&<limit>")]
+fn get_corpus(id : &str, offset : Option<usize>, limit : Option<usize>) -> Result<RawJson<String>, String> {
+    let state = STATE.get().expect("State not set");
+    let offset = offset.unwrap_or(0);
+    let limit = limit.unwrap_or(100);
+    let mut results = HashMap::new();
+    for (name, corpus) in state.corpora.iter() {
+        let query = QueryBuilder::new()
+            .value("oewn", format!("oewn-{}", id))
+            .build();
+        for res in corpus.search(query).skip(offset).take(limit) {
+            let (_, doc) = res.map_err(|e| format!("Failed to get document: {}", e))?;
+            let text = doc.text("text", corpus.get_meta())
+                .map_err(|e| format!("Failed to get text: {}", e))?
+                .iter().next().map(|x| x.to_string()).unwrap_or("".to_string());
+            let mut highlights = Vec::new();
+            for (start, end, data) in doc.indexes_data("oewn", "text", corpus.get_meta()).map_err(|e| format!("Failed to get indexes: {}", e))? {
+                if let TeangaData::String(s) = data {
+                    if s != id {
+                        continue;
+                    }
+                    highlights.push((start, end));
+                } else {
+                    continue;
+                }
+            }
+            results.entry(name.clone()).or_insert_with(Vec::new).push(CorpusDocument { text, highlights });
+        }
+    }
+    Ok(RawJson(serde_json::to_string(&results).map_err(|e| format!("Failed to serialize: {}", e))?))
+}
+
 #[launch]
 fn rocket() -> _ {
     let config = Config::parse();
@@ -354,7 +416,7 @@ fn rocket() -> _ {
                     rdfxml, xml, html_synset,
                     sitemap, robots,
                     autocomplete_synset, edit_page,
-                    edit_page2, ids])
+                    edit_page2, ids, get_corpus])
                     
         },
         Err(msg) => {

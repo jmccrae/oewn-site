@@ -6,3 +6,9 @@ vue/package-lock.json
 wn.ttl.gz
 wordnet.data
 wordnet.db
+raganato_ALL.db
+semcor.db
+wngt.db
+raganato_ALL.yaml
+semcor.yaml
+wngt.yaml
