@@ -156,6 +156,11 @@ fn robots() -> (ContentType, &'static [u8]) {
     (ContentType::Plain, include_bytes!("robots.txt"))
 }
 
+#[get("/corpus/<_id>")]
+fn corpus(_id: &str) -> RawHtml<&'static str> {
+    RawHtml(include_str!("../dist/index.html"))
+}
+
 #[derive(Serialize)]
 struct SiteMapData {
     synsets : Vec<SynsetId>,
@@ -363,15 +368,17 @@ struct CorpusDocument {
     highlights : Vec<(usize, usize)>,
 }
 
-#[get("/corpus/<id>?<offset>&<limit>")]
+#[get("/api/corpus/<id>?<offset>&<limit>")]
 fn get_corpus(id : &str, offset : Option<usize>, limit : Option<usize>) -> Result<RawJson<String>, String> {
     let state = STATE.get().expect("State not set");
     let offset = offset.unwrap_or(0);
     let limit = limit.unwrap_or(100);
+    let id = format!("oewn-{}", id);
     let mut results = HashMap::new();
     for (name, corpus) in state.corpora.iter() {
+        let mut docs = Vec::new();
         let query = QueryBuilder::new()
-            .value("oewn", format!("oewn-{}", id))
+            .value("oewn", id.clone())
             .build();
         for res in corpus.search(query).skip(offset).take(limit) {
             let (_, doc) = res.map_err(|e| format!("Failed to get document: {}", e))?;
@@ -389,8 +396,9 @@ fn get_corpus(id : &str, offset : Option<usize>, limit : Option<usize>) -> Resul
                     continue;
                 }
             }
-            results.entry(name.clone()).or_insert_with(Vec::new).push(CorpusDocument { text, highlights });
+            docs.push(CorpusDocument { text, highlights });
         }
+        results.insert(name.clone(), docs);
     }
     Ok(RawJson(serde_json::to_string(&results).map_err(|e| format!("Failed to serialize: {}", e))?))
 }
@@ -416,7 +424,7 @@ fn rocket() -> _ {
                     rdfxml, xml, html_synset,
                     sitemap, robots,
                     autocomplete_synset, edit_page,
-                    edit_page2, ids, get_corpus])
+                    edit_page2, ids, get_corpus, corpus])
                     
         },
         Err(msg) => {
