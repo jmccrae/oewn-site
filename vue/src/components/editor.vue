@@ -312,7 +312,10 @@
                 this.yaml_changes = yaml.stringify(this.changes);
                 this.$router.push("/edit");
                 this.synset = {};
-            }
+            },
+            changeDeleteSynset(value) {
+                this.deleteSynset = value;
+            },
         },
         watch: {
             searchTerm(val) {
@@ -389,6 +392,7 @@
                             <v-text-field label="Reason" v-model="deleteReason"
                                 required :rules="[v => !!v || 'Reason is required']"></v-text-field>
                             <synsetSearch
+                                    @change_value="(value, lemma) => changeDeleteSynset(value)"
                                     label="Superseded by" :value="deleteSynset"
                                     :rules="[deleteSynset != '' || 'Superseded by is required']"
                                          ></synsetSearch>
