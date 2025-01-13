@@ -19,7 +19,7 @@ use std::fs::File;
 use std::path::Path;
 use serde::Serialize;
 use teanga::Corpus;
-use teanga::disk_corpus::DiskCorpus;
+use teanga::disk_corpus::{DiskCorpus, RedbDb};
 use teanga::query::QueryBuilder;
 use teanga::layer::TeangaData;
 use teanga;
@@ -40,7 +40,7 @@ struct Config {
 struct State<'a> {
     wn : wordnet::Lexicon,
     handlebars : Handlebars<'a>,
-    corpora : HashMap<String, DiskCorpus>,
+    corpora : HashMap<String, DiskCorpus<RedbDb>>,
 }
 
 static STATE: OnceCell<State> = OnceCell::new();
@@ -74,6 +74,7 @@ fn prepare_server(config : &Config) -> Result<(), String> {
             teanga::read_yaml(file, &mut corpus)
                 .map_err(|e| format!("Failed to read corpus file: {}", e))?;
         }
+        corpus.commit().map_err(|e| format!("Failed to commit corpus: {}", e))?;
         corpora.insert(name, corpus);
     }
 
