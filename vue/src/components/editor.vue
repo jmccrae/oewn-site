@@ -222,75 +222,43 @@
                 this.synset.members.splice(index, 1);
                 this.changeMembers();
             },
-            changeRelationSynset(index, value, lemma) {
-                var obj = {"delete_relation": { "source": this.synset.id,
-                    "target": this.old_relations[index].target_synset }};
-                if("source_lemma" in this.relations[index]) {
-                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
+            changeRelations() {
+                this.changes = this.changes.filter(change => !('update_relations' in change) || change.update_relations.synset !== this.synset.id);
+                var relationChanges = [];
+                for (const relation of this.relations) {
+                    if (relation.rel in RELATIONS) {
+                        if (RELATIONS[relation.rel].sense) {
+                            relationChanges.push({
+                                "target": relation.target_synset,
+                                "source_lemma": relation.source_lemma,
+                                "target_lemma": relation.target_lemma,
+                                "relation": relation.rel
+                            });
+                        } else {
+                            relationChanges.push({
+                                "target": relation.target_synset,
+                                "relation": relation.rel
+                            });
+                        }
+                    }
                 }
-                if("target_lemma" in this.relations[index]) {
-                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
-                }
-                this.changes.push(obj);
-
-                this.relations[index].target_synset = value;
-                if ("target_lemma" in this.relations[index]) {
-                    this.relations[index].target_lemma = lemma;
-                }
-
-                var obj = {"add_relation": { "source": this.synset.id, 
-                    "relation": this.relations[index].rel, 
-                    "target": value }};
-                if("target_lemma" in this.relations[index]) {
-                    obj.change_relation.target_lemma = lemma;
-                }
-                if("source_lemma" in this.relations[index]) {
-                    obj.change_relation.source_lemma = this.relations[index].source_lemma;
-                }
-                this.changes.push(obj);
+                this.changes.push({"update_relations": {"synset": this.synset.id, "relations": relationChanges}});
                 this.yaml_changes = yaml.stringify(this.changes);
+            },
+            changeRelationSynset(index, value, lemma) {
+                this.changeRelations();
             },
             is_sense(rel) {
                 return RELATIONS[rel].sense;
             },
             addRelation() {
-                this.relations.push({"rel": "hypernym", "target_synset": "00001740-n"});
-                this.changes.push({"add_relation": {"source": this.synset.id, "relation": "hypernym", "target": "00001740-n"}});
-                this.yaml_changes = yaml.stringify(this.changes);
+                this.changeRelations();
             },
             deleteRelation(index) {
-                var obj = {"delete_relation": {"source": this.synset.id, "target": this.old_relations[index].target_synset}};
-                if("source_lemma" in this.old_relations[index]) {
-                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
-                }
-                if("target_lemma" in this.old_relations[index]) {
-                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
-                }
-                this.changes.push(obj);
-                this.relations.splice(index, 1);
-                this.yaml_changes = yaml.stringify(this.changes);
+                this.changeRelations();
             },
             changeRelationType(index) {
-                var obj = {"delete_relation": { "source": this.synset.id,
-                    "target": this.old_relations[index].target_synset }};
-                if("source_lemma" in this.old_relations[index]) {
-                    obj.delete_relation.source_lemma = this.old_relations[index].source_lemma;
-                }
-                if("target_lemma" in this.old_relations[index]) {
-                    obj.delete_relation.target_lemma = this.old_relations[index].target_lemma;
-                }
-                this.changes.push(obj);
-                var obj = {"add_relation": { "source": this.synset.id, 
-                    "relation": this.relations[index].rel, 
-                    "target": this.relations[index].target_synset }};
-                if("source_lemma" in this.relations[index]) {
-                    obj.add_relation.source_lemma = this.relations[index].source_lemma;
-                }
-                if("target_lemma" in this.relations[index]) {
-                    obj.add_relation.target_lemma = this.relations[index].target_lemma;
-                }
-                this.changes.push(obj);
-                this.yaml_changes = yaml.stringify(this.changes);
+                this.changeRelations();
             },
             addExample() {
                 this.addExampleDialog = false; 
@@ -316,15 +284,7 @@
             changeDeleteSynset(value) {
                 this.deleteSynset = value;
             },
-        },
-        watch: {
-            searchTerm(val) {
-                this.autocomplete();
-            },
-            query(newVal) {
-                this.querySearch();
-            },
-            synset(newVal) {
+            updateRelations(newVal) {
                 this.relations = [];
                 for (const rel_name of Object.keys(RELATIONS)) {
                     if (newVal[rel_name]) {
@@ -339,6 +299,31 @@
                     }
                 }
                 this.old_relations = JSON.parse(JSON.stringify(this.relations));
+            },
+            addSynset() {
+                this.addSynsetDialog = false;
+                this.changes.push({"add_synset": {
+                    "definition": this.newSynset.definition,
+                    "lexfile": this.newSynset.lexfile,
+                    "lemmas": [this.newSynset.lemma]
+                }});
+                this.synset = {
+                    "id": "last",
+                    "lexname": this.newSynset.lexfile,
+                    "definition": [this.newSynset.definition],
+                    "members": [{"lemma": this.newSynset.lemma}],
+                };
+            }
+        },
+        watch: {
+            searchTerm(val) {
+                this.autocomplete();
+            },
+            query(newVal) {
+                this.querySearch();
+            },
+            synset(newVal) {
+                this.updateRelations(newVal);
             },
             changes(newVal) {
                 this.yaml_changes = yaml.stringify(newVal);
@@ -464,7 +449,7 @@
                                 <v-card>
                                     <v-card-title>Add Member</v-card-title>
                                     <v-card-text>
-                                        <v-form v-model="addMemberValid">
+                                        <v-form v-model="addMemberValid" @submit.prevent>
                                             <v-text-field v-model="newMember" required></v-text-field>
                                         </v-form>
                                     </v-card-text>
