@@ -246,15 +246,23 @@
                 this.yaml_changes = yaml.stringify(this.changes);
             },
             changeRelationSynset(index, value, lemma) {
+                this.relations[index].target_synset = value;
                 this.changeRelations();
             },
             is_sense(rel) {
                 return RELATIONS[rel].sense;
             },
             addRelation() {
+                this.relations.push({
+                    "rel": "also",
+                    "target_synset": "",
+                    "source_lemma": "",
+                    "target_lemma": ""
+                });
                 this.changeRelations();
             },
             deleteRelation(index) {
+                this.relations.splice(index, 1);
                 this.changeRelations();
             },
             changeRelationType(index) {
