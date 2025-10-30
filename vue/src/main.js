@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import vuetify from './plugins/vuetify'
+import PrimeVue from 'primevue/config';
+import Aura from '@primeuix/themes/aura';
 import { loadFonts } from './plugins/webfontloader'
 import { createWebHistory, createRouter } from 'vue-router'
 import Wordnet from './components/Wordnet.vue'
@@ -28,6 +29,10 @@ const router = createRouter({
 })
 
 createApp(App)
-  .use(vuetify)
+  .use(PrimeVue, {
+      theme: {
+          preset: 'Aura'
+        }
+  })
   .use(router)
   .mount('#app')

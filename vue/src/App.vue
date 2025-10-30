@@ -1,30 +1,20 @@
 <template>
-    <v-app>
-      <v-main>
-          <v-container fill-height style="max-width: 1140px;">
-              <v-row>
-                  <v-col cols="12" sm="2">
-                      <v-row class="d-flex justify-center">
-                          <img src="./assets/english.svg" class="oewn_logo"/>
-                          <span class="en-title">Open English WordNet</span>
-                      </v-row>
-                      <v-row style="margin-top:20px;">
-                          <v-col xs="1" sm="12" style="padding:0">
+    <div id="app">
+        <div id="main">
+          <div class="grid" style="max-width: 1140px;">
+              <div class="col-12 sm:col-2">
+                  <img src="./assets/english.svg" class="oewn_logo"/>
+                  <span class="en-title">Open English WordNet</span>
+              </div>
+              <div class="col-12 sm:col-10">
                               <RouterLink to="/" class="sidebar_link">Search</RouterLink>
-                          </v-col>
-                          <v-col xs="1" sm="12" style="padding:0">
                               <RouterLink to="/downloads" class="sidebar_link">Downloads</RouterLink>
-                          </v-col>
-                          <v-col xs="1" sm="12" style="padding:0">
                               <RouterLink to="/edit" class="sidebar_link">Editor</RouterLink>
-                          </v-col>
-                          <v-col></v-col>
-                      </v-row>
-                  </v-col>
-                  <v-col cols="12" sm="10">
-                      <RouterView/>
-                  </v-col>
-              </v-row>
+               </div>
+               <div class="col-12">
+                  <RouterView/>
+               </div>
+            </div>
               <footer class="footer">
                   <div class="container">
                       <div style="text-align:right;" class="footer1">
@@ -33,9 +23,8 @@
                       </div>
                   </div>
               </footer>
-            </v-container>
-      </v-main>
-  </v-app>
+        </div>
+    </div>>
 </template>
 
 <script>
